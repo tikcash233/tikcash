@@ -1,0 +1,74 @@
+{
+  "name": "Creator",
+  "type": "object",
+  "properties": {
+    "tiktok_username": {
+      "type": "string",
+      "description": "TikTok handle without @"
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Creator's display name"
+    },
+    "bio": {
+      "type": "string",
+      "description": "Short bio about the creator"
+    },
+    "profile_image": {
+      "type": "string",
+      "description": "URL to profile image"
+    },
+    "follower_count": {
+      "type": "number",
+      "description": "Number of TikTok followers"
+    },
+    "total_earnings": {
+      "type": "number",
+      "default": 0,
+      "description": "Total earnings in GHS"
+    },
+    "available_balance": {
+      "type": "number",
+      "default": 0,
+      "description": "Available balance for withdrawal in GHS"
+    },
+    "phone_number": {
+      "type": "string",
+      "description": "Phone number for mobile money"
+    },
+    "preferred_payment_method": {
+      "type": "string",
+      "enum": [
+        "momo",
+        "bank_transfer"
+      ],
+      "default": "momo",
+      "description": "Preferred withdrawal method"
+    },
+    "is_verified": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the creator is verified"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "comedy",
+        "dance",
+        "music",
+        "education",
+        "lifestyle",
+        "fashion",
+        "food",
+        "sports",
+        "other"
+      ],
+      "default": "other",
+      "description": "Creator's content category"
+    }
+  },
+  "required": [
+    "tiktok_username",
+    "display_name"
+  ]
+}

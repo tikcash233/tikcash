@@ -1,0 +1,12 @@
+# Node/JS
+node_modules/
+dist/
+build/
+*.log
+.cache/
+.vite/
+coverage/
+
+# Env
+.env
+.env.*

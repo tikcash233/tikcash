@@ -1,0 +1,50 @@
+{
+  "name": "Transaction",
+  "type": "object",
+  "properties": {
+    "creator_id": {
+      "type": "string",
+      "description": "ID of the creator receiving the tip"
+    },
+    "supporter_name": {
+      "type": "string",
+      "description": "Name of the person sending the tip"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Amount in GHS"
+    },
+    "message": {
+      "type": "string",
+      "description": "Optional message from supporter"
+    },
+    "transaction_type": {
+      "type": "string",
+      "enum": [
+        "tip",
+        "withdrawal",
+        "refund"
+      ],
+      "description": "Type of transaction"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "completed",
+        "failed"
+      ],
+      "default": "pending",
+      "description": "Transaction status"
+    },
+    "payment_reference": {
+      "type": "string",
+      "description": "Payment processor reference"
+    }
+  },
+  "required": [
+    "creator_id",
+    "amount",
+    "transaction_type"
+  ]
+}

@@ -1,0 +1,173 @@
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
+import { createPageUrl } from "@/utils";
+import { Home, User, Users, TrendingUp, Heart, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
+
+const navigationItems = [
+	{
+		title: "Home",
+		url: createPageUrl("Home"),
+		icon: Home,
+	},
+	{
+		title: "Creator Dashboard",
+		url: createPageUrl("CreatorDashboard"),
+		icon: User,
+	},
+	{
+		title: "Support Creators",
+		url: createPageUrl("SupporterDashboard"),
+		icon: Heart,
+	},
+	{
+		title: "Browse Creators",
+		url: createPageUrl("BrowseCreators"),
+		icon: Users,
+	},
+];
+
+export default function Layout({ children, currentPageName }) {
+	const location = useLocation();
+	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+	const isHome = currentPageName === "Home";
+
+	return (
+		<div className="min-h-screen bg-white">
+			<style>{`
+				:root {
+					--primary-blue: #2563eb;
+					--primary-blue-dark: #1d4ed8;
+					--primary-blue-light: #3b82f6;
+					--accent-blue: #60a5fa;
+					--light-blue: #eff6ff;
+				}
+			`}</style>
+      
+			{/* Header */}
+			<header className={`sticky top-0 z-50 ${isHome ? 'bg-white/95 backdrop-blur-lg' : 'bg-white'} border-b border-gray-100`}>
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+					<div className="flex justify-between items-center h-16">
+						{/* Logo */}
+						<Link to={createPageUrl("Home")} className="flex items-center space-x-3">
+							<div className="relative">
+								<div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
+									<TrendingUp className="w-6 h-6 text-white" />
+								</div>
+								<div className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full border-2 border-blue-600"></div>
+							</div>
+							<div className="hidden sm:block">
+								<h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+									TikCash
+								</h1>
+								<p className="text-xs text-gray-500 -mt-1">Creator Platform</p>
+							</div>
+						</Link>
+
+						{/* Desktop Navigation */}
+						<nav className="hidden md:flex space-x-1">
+							{navigationItems.map((item) => (
+								<Link
+									key={item.title}
+									to={item.url}
+									className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+										location.pathname === item.url
+											? 'bg-blue-50 text-blue-700 shadow-sm'
+											: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+									}`}
+								>
+									<item.icon className="w-4 h-4" />
+									<span>{item.title}</span>
+								</Link>
+							))}
+						</nav>
+
+						{/* Mobile Menu Button */}
+						<button
+							onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+							className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+						>
+							{mobileMenuOpen ? (
+								<X className="w-5 h-5" />
+							) : (
+								<Menu className="w-5 h-5" />
+							)}
+						</button>
+					</div>
+				</div>
+
+				{/* Mobile Navigation */}
+				{mobileMenuOpen && (
+					<div className="md:hidden bg-white border-t border-gray-100 py-2">
+						<div className="max-w-7xl mx-auto px-4 space-y-1">
+							{navigationItems.map((item) => (
+								<Link
+									key={item.title}
+									to={item.url}
+									onClick={() => setMobileMenuOpen(false)}
+									className={`flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+										location.pathname === item.url
+											? 'bg-blue-50 text-blue-700'
+											: 'text-gray-600 hover:bg-gray-50'
+									}`}
+								>
+									<item.icon className="w-5 h-5" />
+									<span>{item.title}</span>
+								</Link>
+							))}
+						</div>
+					</div>
+				)}
+			</header>
+
+			{/* Main Content */}
+			<main className="flex-1">
+				{children}
+			</main>
+
+			{/* Footer */}
+			{isHome && (
+				<footer className="bg-gray-900 text-white py-12">
+					<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+						<div className="grid md:grid-cols-4 gap-8">
+							<div className="md:col-span-2">
+								<div className="flex items-center space-x-3 mb-4">
+									<div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
+										<TrendingUp className="w-6 h-6 text-white" />
+									</div>
+									<div>
+										<h3 className="text-xl font-bold">TikCash</h3>
+										<p className="text-gray-400 text-sm">Creator Platform</p>
+									</div>
+								</div>
+								<p className="text-gray-400 mb-4">
+									Empowering TikTok creators to monetize their content and connect with supporters worldwide.
+								</p>
+							</div>
+							<div>
+								<h4 className="font-semibold mb-4">Platform</h4>
+								<ul className="space-y-2 text-gray-400 text-sm">
+									<li><Link to={createPageUrl("CreatorDashboard")} className="hover:text-white transition-colors">For Creators</Link></li>
+									<li><Link to={createPageUrl("SupporterDashboard")} className="hover:text-white transition-colors">For Supporters</Link></li>
+									<li><Link to={createPageUrl("BrowseCreators")} className="hover:text-white transition-colors">Browse Creators</Link></li>
+								</ul>
+							</div>
+							<div>
+								<h4 className="font-semibold mb-4">Support</h4>
+								<ul className="space-y-2 text-gray-400 text-sm">
+									<li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
+									<li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
+									<li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
+								</ul>
+							</div>
+						</div>
+						<div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400 text-sm">
+							<p>&copy; 2025 TikCash. Built for creators worldwide.</p>
+						</div>
+					</div>
+				</footer>
+			)}
+		</div>
+	);
+}
