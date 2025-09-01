@@ -29,7 +29,7 @@ export default function CreatorCard({ creator, onTip }) {
 
 				<div className="flex items-center justify-between text-sm text-gray-600 mb-4">
 					<span>{(follower_count || 0).toLocaleString()} followers</span>
-					<span>${(total_earnings || 0).toFixed(2)} earned</span>
+					<span>GH₵ {(total_earnings || 0).toFixed(2)} earned</span>
 				</div>
 
 				<Button onClick={onTip} className="w-full">Tip Creator</Button>

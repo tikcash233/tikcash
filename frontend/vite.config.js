@@ -9,6 +9,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, '.'),
     },
   },
+  server: {
+    port: 3000,
+    strictPort: true,
+  },
+  preview: {
+    port: 3000,
+  },
   optimizeDeps: {
     esbuildOptions: {
       loader: {

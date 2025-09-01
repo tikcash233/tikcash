@@ -15,11 +15,11 @@ export default function EarningsOverview({ creator, onWithdraw }) {
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
 					<div>
 						<p className="text-sm text-gray-600">Total Earnings</p>
-						<p className="text-3xl font-bold">${total.toFixed(2)}</p>
+						<p className="text-3xl font-bold">GH₵ {total.toFixed(2)}</p>
 					</div>
 					<div>
 						<p className="text-sm text-gray-600">Available Balance</p>
-						<p className="text-3xl font-bold text-green-600">${available.toFixed(2)}</p>
+						<p className="text-3xl font-bold text-green-600">GH₵ {available.toFixed(2)}</p>
 					</div>
 					<div className="flex md:justify-end">
 						<Button disabled={available <= 0} onClick={onWithdraw}>Withdraw</Button>

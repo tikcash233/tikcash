@@ -8,11 +8,8 @@ import {
   Heart, 
   Shield, 
   Smartphone, 
-  DollarSign, 
-  Users,
-  Star,
   ArrowRight,
-  CheckCircle
+  Percent
 } from "lucide-react";
 
 export default function Home() {
@@ -39,12 +36,7 @@ export default function Home() {
     }
   ];
 
-  const stats = [
-    { number: "1,000+", label: "Active Creators" },
-    { number: "$50,000+", label: "Total Earnings" },
-    { number: "10,000+", label: "Happy Supporters" },
-    { number: "99.9%", label: "Uptime" }
-  ];
+  // Stats section removed per request
 
   return (
     <div className="overflow-x-hidden">
@@ -53,9 +45,9 @@ export default function Home() {
         <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <div className="inline-flex items-center space-x-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full mb-6 border border-blue-200 shadow-sm">
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-gray-700">Creator Monetization Platform</span>
+            <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-gray-900 px-5 py-2.5 mb-6 shadow-lg ring-1 ring-amber-300/60">
+              
+              <span className="text-sm sm:text-base font-semibold">Creators keep <span className="font-extrabold">90%</span> of tips</span>
             </div>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
@@ -66,8 +58,7 @@ export default function Home() {
             </h1>
             
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              The premier monetization platform for TikTok creators worldwide. 
-              Get tips, track earnings, and withdraw directly to your preferred payment method.
+              Built for TikTok creators. Get tips, track earnings, and withdraw instantly.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -88,21 +79,41 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
-                  {stat.number}
+      {/* Simple Fee Comparison */}
+      <section className="py-10 bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card className="border-blue-100 shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold">TikCash</h3>
                 </div>
-                <div className="text-gray-600">{stat.label}</div>
-              </div>
-            ))}
+                <p className="text-gray-700"><span className="font-semibold">90% to creators</span></p>
+                <p className="text-gray-500 text-sm mt-1">Example: GH₵100 tip → <span className="font-medium text-gray-700">GH₵90 to you</span></p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-gray-100 shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gray-600 flex items-center justify-center">
+                    <Heart className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold">TikTok Gifts</h3>
+                </div>
+                <p className="text-gray-700"><span className="font-semibold">~50% to creators</span></p>
+                <p className="text-gray-500 text-sm mt-1">Example: GH₵50 gift → <span className="font-medium text-gray-700">~GH₵25 to you</span></p>
+              </CardContent>
+            </Card>
           </div>
+          <p className="text-xs text-gray-500 mt-3">Figures are illustrative. Excludes Mobile Money/processor fee.</p>
         </div>
       </section>
+
+  {/* Stats Section removed */}
 
       {/* Features Section */}
       <section className="py-20 bg-gray-50">
@@ -112,7 +123,7 @@ export default function Home() {
               Everything You Need to Succeed
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Built for creators worldwide, featuring secure payments and mobile-first design
+              Built for creators, featuring secure payments and mobile-first design
             </p>
           </div>
           
@@ -139,7 +150,7 @@ export default function Home() {
             <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
               How TikCash Works
             </h2>
-            <p className="text-xl text-gray-600">Simple steps to start monetizing your content</p>
+            <p className="text-xl text-gray-600">Simple steps to start monetizing your live contents</p>
           </div>
           
           <div className="grid md:grid-cols-3 gap-12">
@@ -159,7 +170,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-4">Receive Tips</h3>
               <p className="text-gray-600">
-                Share your TikCash link and start receiving tips from fans who love your content
+                Share your TikCash link and start receiving tips from fans who love your live content
               </p>
             </div>
             
@@ -183,10 +194,10 @@ export default function Home() {
             Ready to Start Earning?
           </h2>
           <p className="text-xl text-white/90 mb-8">
-            Join thousands of creators who are already monetizing their TikTok content
+            Join thousands of creators who are already monetizing their TikTok Live content
           </p>
           <Link to={createPageUrl("CreatorDashboard")}>
-            <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100 shadow-lg px-8 py-3 text-lg font-semibold">
+            <Button size="lg" className="bg-gradient-to-r from-amber-400 to-yellow-500 text-gray-900 hover:from-amber-500 hover:to-yellow-600 shadow-lg ring-1 ring-amber-300 px-8 py-3 text-lg font-semibold">
               Get Started Now
               <ArrowRight className="ml-2 w-5 h-5" />
             </Button>

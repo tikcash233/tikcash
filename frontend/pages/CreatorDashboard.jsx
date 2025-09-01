@@ -110,14 +110,14 @@ export default function CreatorDashboard() {
   const stats = [
     {
       title: "Total Earnings",
-      value: `$${(creator.total_earnings || 0).toFixed(2)}`,
+  value: `GH₵ ${(creator.total_earnings || 0).toFixed(2)}`,
       icon: DollarSign,
       color: "text-blue-600",
       bgColor: "bg-blue-50"
     },
     {
       title: "Available Balance",
-      value: `$${(creator.available_balance || 0).toFixed(2)}`,
+  value: `GH₵ ${(creator.available_balance || 0).toFixed(2)}`,
       icon: TrendingUp,
       color: "text-green-600",
       bgColor: "bg-green-50"

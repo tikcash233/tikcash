@@ -21,7 +21,7 @@ export default function RecentTransactions({ transactions = [] }) {
 									)}
 								</div>
 								<div className={t.amount >= 0 ? "text-green-600" : "text-red-600"}>
-									{t.amount >= 0 ? "+" : ""}${t.amount.toFixed(2)}
+									{t.amount >= 0 ? "+" : ""}GH₵ {t.amount.toFixed(2)}
 								</div>
 							</li>
 						))}

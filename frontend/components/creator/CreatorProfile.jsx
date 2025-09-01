@@ -8,15 +8,13 @@ import { User } from "@/entities/all";
 export default function CreatorProfile({ onCreateProfile }) {
 	const [me, setMe] = useState(null);
 	const [loading, setLoading] = useState(true);
-	const [form, setForm] = useState({
-		tiktok_username: "",
-		display_name: "",
-		bio: "",
-		phone_number: "",
-		preferred_payment_method: "momo",
-		profile_image: "",
-		category: "other",
-	});
+		const [form, setForm] = useState({
+			tiktok_username: "",
+			display_name: "",
+			phone_number: "",
+			preferred_payment_method: "momo",
+			category: "other",
+		});
 
 	useEffect(() => {
 		(async () => {
@@ -49,7 +47,7 @@ export default function CreatorProfile({ onCreateProfile }) {
 		);
 	}
 
-	return (
+		return (
 		<Card className="border-none shadow-lg">
 			<CardHeader>
 				<CardTitle>Create your creator profile</CardTitle>
@@ -76,23 +74,12 @@ export default function CreatorProfile({ onCreateProfile }) {
 							required
 						/>
 					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Bio</label>
-						<textarea
-							name="bio"
-							className="block w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-							rows={3}
-							placeholder="Tell supporters about you"
-							value={form.bio}
-							onChange={onChange}
-						/>
-					</div>
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Phone Number</label>
 							<Input
 								name="phone_number"
-								placeholder="e.g. +23320..."
+							placeholder="e.g. 0241234567"
 								value={form.phone_number}
 								onChange={onChange}
 							/>
@@ -105,19 +92,9 @@ export default function CreatorProfile({ onCreateProfile }) {
 								value={form.preferred_payment_method}
 								onChange={onChange}
 							>
-								<option value="momo">Mobile Money</option>
-								<option value="bank_transfer">Bank Transfer</option>
+							<option value="momo">Mobile Money</option>
 							</select>
 						</div>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Profile Image URL</label>
-						<Input
-							name="profile_image"
-							placeholder="https://..."
-							value={form.profile_image}
-							onChange={onChange}
-						/>
 					</div>
 					<div>
 						<label className="block text-sm font-medium text-gray-700">Category</label>

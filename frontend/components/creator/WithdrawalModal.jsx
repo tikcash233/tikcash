@@ -23,7 +23,7 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 				</CardHeader>
 				<CardContent>
 					<form onSubmit={handleSubmit} className="space-y-4">
-						<p className="text-sm text-gray-600">Available: ${available.toFixed(2)}</p>
+						<p className="text-sm text-gray-600">Available: GH₵ {available.toFixed(2)}</p>
 						<Input
 							type="number"
 							step="0.01"

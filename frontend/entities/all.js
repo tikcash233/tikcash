@@ -76,8 +76,8 @@ function seedCreatorsIfEmpty() {
       follower_count: 18000,
       total_earnings: 410,
       available_balance: 210,
-      phone_number: "+233244556677",
-      preferred_payment_method: "bank_transfer",
+  phone_number: "+233244556677",
+  preferred_payment_method: "momo",
       is_verified: false,
       category: "food"
     }

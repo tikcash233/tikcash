@@ -30,7 +30,7 @@ export default function PerformanceChart({ transactions = [] }) {
 									<div
 										className="w-6 bg-blue-500 rounded"
 										style={{ height: Math.max(4, Math.min(150, sum)) }}
-										title={`$${sum.toFixed(2)} on ${day}`}
+										title={`GH₵ ${sum.toFixed(2)} on ${day}`}
 									/>
 									<span className="text-[10px] text-gray-500 mt-1">{day.slice(5)}</span>
 								</div>
