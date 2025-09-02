@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function formatCedi(v) {
@@ -6,130 +6,242 @@ function formatCedi(v) {
 	return `GH₵ ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const MONTHS = [
+	"Jan.", "Feb.", "Mar.", "Apr.", "May.", "Jun.",
+	"Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."
+];
+
+function startOfDay(d) {
+	const x = new Date(d);
+	x.setHours(0, 0, 0, 0);
+	return x;
+}
+function startOfISOWeek(d) {
+	const x = startOfDay(d);
+	const day = (x.getDay() + 6) % 7; // Mon=0 ... Sun=6
+	x.setDate(x.getDate() - day);
+	return x;
+}
+function startOfMonth(d) {
+	const x = startOfDay(d);
+	x.setDate(1);
+	return x;
+}
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function addWeeks(d, n) { return addDays(d, n * 7); }
+function addMonths(d, n) { const x = new Date(d); x.setMonth(x.getMonth() + n); return startOfMonth(x); }
+function isoDate(d) { return startOfDay(d).toISOString().slice(0, 10); }
+function monthKey(d) { const x = startOfMonth(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`; }
+function weekKey(d) { return isoDate(startOfISOWeek(d)); }
+function humanLabel(d, granularity) {
+	const x = new Date(d);
+	if (granularity === "day") return `${String(x.getDate()).padStart(2, "0")} ${MONTHS[x.getMonth()]} ${x.getFullYear()}`;
+	if (granularity === "week") return `Week of ${String(x.getDate()).padStart(2, "0")} ${MONTHS[x.getMonth()]} ${x.getFullYear()}`;
+	return `${MONTHS[x.getMonth()]} ${x.getFullYear()}`;
+}
+function humanTick(d, granularity) {
+	const x = new Date(d);
+	if (granularity === "day") return `${String(x.getMonth() + 1).padStart(2, "0")}/${String(x.getDate()).padStart(2, "0")}`;
+	if (granularity === "week") return `${String(x.getMonth() + 1).padStart(2, "0")}/${String(x.getDate()).padStart(2, "0")}`;
+	return `${MONTHS[x.getMonth()]}`;
+}
+
 export default function PerformanceChart({ transactions = [] }) {
-	const [rangeDays, setRangeDays] = useState(30); // 7 or 30
-	const [hoverX, setHoverX] = useState(null); // pixel x for hover
+	// Controls
+	const [granularity, setGranularity] = useState("day"); // 'day' | 'week' | 'month'
+	const [rangeKey, setRangeKey] = useState("30d"); // day: 7d/30d, week: 12w/all, month: 12m/all
+	const [activeOnly, setActiveOnly] = useState(false);
+	const [hoverX, setHoverX] = useState(null);
 	const containerRef = useRef(null);
 
-	// Aggregate tips by ISO date (YYYY-MM-DD)
-	const allDays = useMemo(() => {
-		const map = new Map();
-		for (const t of transactions) {
-			if (t.transaction_type !== "tip") continue;
-			const d = new Date(t.created_date || Date.now());
-			const key = d.toISOString().slice(0, 10);
-			map.set(key, (map.get(key) || 0) + (t.amount || 0));
-		}
-		return Array.from(map.entries()).sort(([a], [b]) => (a < b ? -1 : 1));
+	// Normalize transactions to tips with dates
+	const tips = useMemo(() => {
+		return transactions
+			.filter((t) => t.transaction_type === "tip")
+			.map((t) => ({ amount: Number(t.amount || 0), date: startOfDay(new Date(t.created_date || Date.now())) }));
 	}, [transactions]);
 
-	// Build a continuous series for last N days
-	const series = useMemo(() => {
-		if (!allDays.length) return [];
-		const end = new Date(allDays[allDays.length - 1][0]);
-		const start = new Date(end);
-		start.setDate(start.getDate() - (rangeDays - 1));
+	const hasData = tips.length > 0;
+	const latestDate = useMemo(() => (hasData ? tips.reduce((a, b) => (a > b.date ? a : b.date), tips[0].date) : new Date()), [tips, hasData]);
+	const earliestDate = useMemo(() => (hasData ? tips.reduce((a, b) => (a < b.date ? a : b.date), tips[0].date) : new Date()), [tips, hasData]);
 
-		const byDate = new Map(allDays);
+	// Aggregate by granularity
+	const sumByBucket = useMemo(() => {
+		const m = new Map();
+		for (const t of tips) {
+			let key;
+			if (granularity === "day") key = isoDate(t.date);
+			else if (granularity === "week") key = weekKey(t.date);
+			else key = monthKey(t.date);
+			m.set(key, (m.get(key) || 0) + t.amount);
+		}
+		return m;
+	}, [tips, granularity]);
+
+	// Range
+	const { rangeStart, rangeEnd } = useMemo(() => {
+		if (!hasData) {
+			const today = startOfDay(new Date());
+			return { rangeStart: today, rangeEnd: today };
+		}
+		let end = startOfDay(latestDate);
+		if (granularity === "day") {
+			if (rangeKey === "7d") return { rangeStart: addDays(end, -6), rangeEnd: end };
+			return { rangeStart: addDays(end, -29), rangeEnd: end };
+		}
+		if (granularity === "week") {
+			end = startOfISOWeek(end);
+			if (rangeKey === "12w") return { rangeStart: addWeeks(end, -11), rangeEnd: end };
+			const start = startOfISOWeek(earliestDate);
+			return { rangeStart: start, rangeEnd: end };
+		}
+		// month
+		end = startOfMonth(end);
+		if (rangeKey === "12m") return { rangeStart: addMonths(end, -11), rangeEnd: end };
+		const start = startOfMonth(earliestDate);
+		return { rangeStart: start, rangeEnd: end };
+	}, [hasData, latestDate, earliestDate, granularity, rangeKey]);
+
+	// Build continuous series between start/end
+	const series = useMemo(() => {
 		const out = [];
-		const cur = new Date(start);
-		while (cur <= end) {
-			const key = cur.toISOString().slice(0, 10);
-			out.push({ date: key, amount: byDate.get(key) || 0 });
-			cur.setDate(cur.getDate() + 1);
+		if (!hasData) return out;
+		let cursor = new Date(rangeStart);
+		while (cursor <= rangeEnd) {
+			let key, next;
+			if (granularity === "day") { key = isoDate(cursor); next = addDays(cursor, 1); }
+			else if (granularity === "week") { key = weekKey(cursor); next = addWeeks(cursor, 1); }
+			else { key = monthKey(cursor); next = addMonths(cursor, 1); }
+			out.push({ key, amount: sumByBucket.get(key) || 0, labelDate: new Date(cursor) });
+			cursor = next;
 		}
 		return out;
-	}, [allDays, rangeDays]);
+	}, [sumByBucket, rangeStart, rangeEnd, hasData, granularity]);
 
+	// Active-only filter
+	const dSeries = useMemo(() => (activeOnly ? series.filter((d) => d.amount > 0) : series), [series, activeOnly]);
+
+	// Totals
 	const totals = useMemo(() => {
-		const sum = series.reduce((s, d) => s + d.amount, 0);
-		const max = Math.max(0, ...series.map(d => d.amount));
-		const best = series.reduce((acc, d) => (d.amount > (acc?.amount || 0) ? d : acc), null);
+		const sum = dSeries.reduce((s, d) => s + d.amount, 0);
+		const max = Math.max(0, ...dSeries.map((d) => d.amount));
+		const best = dSeries.reduce((acc, d) => (d.amount > (acc?.amount || 0) ? d : acc), null);
 		return { sum, max, best };
-	}, [series]);
+	}, [dSeries]);
 
-	// Chart dimensions
-	const width = 800; // intrinsic; scales responsively via viewBox
+	// Chart dims and scales
+	const width = 800;
 	const height = 220;
 	const pad = 24;
 	const innerW = width - pad * 2;
 	const innerH = height - pad * 2;
-
-	// Scales
 	const maxY = Math.max(10, totals.max * 1.1);
-	const xStep = series.length > 1 ? innerW / (series.length - 1) : 0;
+	const xStep = dSeries.length > 1 ? innerW / (dSeries.length - 1) : 0;
 	const yScale = (v) => innerH - (v / maxY) * innerH;
 
-	// Paths
 	const linePath = useMemo(() => {
-		if (series.length === 0) return "";
-		const parts = series.map((d, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${pad + yScale(d.amount)}`);
+		if (dSeries.length === 0) return "";
+		const parts = dSeries.map((d, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${pad + yScale(d.amount)}`);
 		return parts.join(" ");
-	}, [series, xStep]);
+	}, [dSeries, xStep]);
 
 	const areaPath = useMemo(() => {
-		if (series.length === 0) return "";
-		const top = series.map((d, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${pad + yScale(d.amount)}`).join(" ");
-		const bottom = `L ${pad + (series.length - 1) * xStep} ${pad + innerH} L ${pad} ${pad + innerH} Z`;
+		if (dSeries.length === 0) return "";
+		const top = dSeries.map((d, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${pad + yScale(d.amount)}`).join(" ");
+		const bottom = `L ${pad + (dSeries.length - 1) * xStep} ${pad + innerH} L ${pad} ${pad + innerH} Z`;
 		return `${top} ${bottom}`;
-	}, [series, xStep, innerH]);
+	}, [dSeries, xStep, innerH]);
 
-	// Hover logic
-	const onMouseMove = (e) => {
-		const rect = e.currentTarget.getBoundingClientRect();
-		const x = e.clientX - rect.left;
+	// Hover / touch
+	const onPosChange = (clientX, currentTarget) => {
+		const rect = currentTarget.getBoundingClientRect();
+		const x = clientX - rect.left;
 		setHoverX(Math.max(pad, Math.min(width - pad, x)));
 	};
-
+	const onMouseMove = (e) => onPosChange(e.clientX, e.currentTarget);
 	const onMouseLeave = () => setHoverX(null);
+	const onTouchMove = (e) => { const t = e.touches[0]; if (t) onPosChange(t.clientX, e.currentTarget); };
+	const onTouchEnd = () => setHoverX(null);
 
 	const hoverIndex = useMemo(() => {
 		if (hoverX == null || xStep === 0) return null;
 		const rel = hoverX - pad;
 		const idx = Math.round(rel / xStep);
-		return Math.max(0, Math.min(series.length - 1, idx));
-	}, [hoverX, xStep, series.length]);
+		return Math.max(0, Math.min(dSeries.length - 1, idx));
+	}, [hoverX, xStep, dSeries.length]);
+	const hoverPoint = hoverIndex != null ? dSeries[hoverIndex] : null;
 
-	const hoverPoint = hoverIndex != null ? series[hoverIndex] : null;
+	const rangeButtons =
+		granularity === "day"
+			? [ { key: "7d", label: "7D" }, { key: "30d", label: "30D" } ]
+			: granularity === "week"
+			? [ { key: "12w", label: "12W" }, { key: "all", label: "All" } ]
+			: [ { key: "12m", label: "12M" }, { key: "all", label: "All" } ];
 
 	return (
 		<Card className="border-none shadow-lg w-full overflow-hidden">
 			<CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-				<CardTitle>Weekly Earnings</CardTitle>
-				<div className="flex gap-2">
+				<CardTitle>Performance</CardTitle>
+				<div className="flex flex-wrap items-center gap-2">
+					{/* Granularity */}
+					<div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+						{[{ key: "day", label: "Day" }, { key: "week", label: "Week" }, { key: "month", label: "Month" }].map((g) => (
+							<button
+								key={g.key}
+								className={`px-3 py-1.5 text-sm font-medium ${granularity === g.key ? "bg-gray-900 text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+								onClick={() => { setGranularity(g.key); if (g.key === "day") setRangeKey("30d"); else if (g.key === "week") setRangeKey("12w"); else setRangeKey("12m"); }}
+							>
+								{g.label}
+							</button>
+						))}
+					</div>
+
+					{/* Range */}
+					<div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+						{rangeButtons.map((r) => (
+							<button
+								key={r.key}
+								className={`px-3 py-1.5 text-sm font-medium ${rangeKey === r.key ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+								onClick={() => setRangeKey(r.key)}
+							>
+								{r.label}
+							</button>
+						))}
+					</div>
+
+					{/* Active only */}
 					<button
-						className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${rangeDays === 7 ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 hover:bg-gray-50 border-gray-300"}`}
-						onClick={() => setRangeDays(7)}
+						className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${activeOnly ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-700 hover:bg-gray-50 border-gray-300"}`}
+						onClick={() => setActiveOnly((v) => !v)}
+						title="Show only periods with tips"
 					>
-						7D
-					</button>
-					<button
-						className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${rangeDays === 30 ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 hover:bg-gray-50 border-gray-300"}`}
-						onClick={() => setRangeDays(30)}
-					>
-						30D
+						{activeOnly ? "Active Only" : "All Periods"}
 					</button>
 				</div>
 			</CardHeader>
 			<CardContent>
-				{series.length === 0 ? (
+				{!hasData ? (
 					<p className="text-gray-600">No performance data yet.</p>
+				) : dSeries.length === 0 ? (
+					<p className="text-gray-600">No data in this range.</p>
 				) : (
 					<div ref={containerRef} className="w-full min-w-0">
-						{/* Summary */}
 						<div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
 							<span className="text-gray-700">Total: <strong>{formatCedi(totals.sum)}</strong></span>
 							{totals.best && (
-								<span className="text-gray-700">Best day: <strong>{formatCedi(totals.best.amount)}</strong> on <strong>{totals.best.date}</strong></span>
+								<span className="text-gray-700">Best {granularity}: <strong>{formatCedi(totals.best.amount)}</strong> on <strong>{humanLabel(totals.best.labelDate || dSeries.find(d=>d.amount===totals.best.amount)?.labelDate, granularity)}</strong></span>
 							)}
+							<span className="text-gray-500">Shown: {dSeries.length} {granularity === "day" ? "days" : granularity === "week" ? "weeks" : "months"}</span>
 						</div>
 
 						<div className="relative">
 							<svg
 								viewBox={`0 0 ${width} ${height}`}
-								className="w-full h-64 select-none"
+								className="w-full h-56 sm:h-64 select-none"
 								onMouseMove={onMouseMove}
 								onMouseLeave={onMouseLeave}
+								onTouchMove={onTouchMove}
+								onTouchEnd={onTouchEnd}
 							>
 								<defs>
 									<linearGradient id="perfFill" x1="0" x2="0" y1="0" y2="1">
@@ -142,25 +254,19 @@ export default function PerformanceChart({ transactions = [] }) {
 									</linearGradient>
 								</defs>
 
-								{/* Grid */}
 								{[0.25, 0.5, 0.75, 1].map((p, i) => (
 									<line key={i} x1={pad} x2={width - pad} y1={pad + innerH * p} y2={pad + innerH * p} stroke="#e5e7eb" strokeWidth="1" />
 								))}
 
-								{/* Area */}
 								<path d={areaPath} fill="url(#perfFill)" />
-
-								{/* Line */}
 								<path d={linePath} fill="none" stroke="url(#perfLine)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
 
-								{/* X ticks: show 4 evenly spaced labels */}
-								{series.map((d, i) => (i % Math.max(1, Math.round(series.length / 4)) === 0) ? (
-									<g key={d.date} transform={`translate(${pad + i * xStep}, ${height - pad + 14})`}>
-										<text textAnchor="middle" fontSize="10" fill="#6b7280">{d.date.slice(5)}</text>
+								{dSeries.map((d, i) => (i % Math.max(1, Math.round(dSeries.length / 4)) === 0) ? (
+									<g key={d.key} transform={`translate(${pad + i * xStep}, ${height - pad + 14})`}>
+										<text textAnchor="middle" fontSize="10" fill="#6b7280">{humanTick(d.labelDate, granularity)}</text>
 									</g>
 								) : null)}
 
-								{/* Hover marker */}
 								{hoverPoint && (
 									<g>
 										<line x1={pad + hoverIndex * xStep} x2={pad + hoverIndex * xStep} y1={pad} y2={height - pad} stroke="#94a3b8" strokeDasharray="4 4" />
@@ -169,13 +275,9 @@ export default function PerformanceChart({ transactions = [] }) {
 								)}
 							</svg>
 
-							{/* Tooltip */}
 							{hoverPoint && (
-								<div
-									className="absolute -translate-x-1/2 -translate-y-2 px-2 py-1 rounded-md bg-slate-800 text-white text-xs shadow"
-									style={{ left: `${((pad + hoverIndex * xStep) / width) * 100}%`, top: 8 }}
-								>
-									<div className="font-semibold">{hoverPoint.date}</div>
+								<div className="absolute -translate-x-1/2 -translate-y-2 px-2 py-1 rounded-md bg-slate-800 text-white text-xs shadow" style={{ left: `${((pad + hoverIndex * xStep) / width) * 100}%`, top: 8 }}>
+									<div className="font-semibold">{humanLabel(hoverPoint.labelDate, granularity)}</div>
 									<div>{formatCedi(hoverPoint.amount)}</div>
 								</div>
 							)}
