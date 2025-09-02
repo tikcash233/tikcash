@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import EarningsOverview from "../components/creator/EarningsOverview";
+import ShareLinkBar from "../components/creator/ShareLinkBar";
 import RecentTransactions from "../components/creator/RecentTransactions";
 import WithdrawalModal from "../components/creator/WithdrawalModal";
 import CreatorProfile from "../components/creator/CreatorProfile";
@@ -116,7 +117,7 @@ export default function CreatorDashboard() {
     {
       title: "Total Earnings",
       value: `GH₵ ${(creator.total_earnings || 0).toFixed(2)}`,
-      icon: CediIcon,
+  icon: TrendingUp,
       color: "text-blue-600",
       bgColor: "bg-blue-50"
     },
@@ -164,6 +165,11 @@ export default function CreatorDashboard() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Share Link */}
+        <div className="mb-8">
+          <ShareLinkBar creator={creator} />
         </div>
 
         {/* Stats Grid */}
