@@ -4,7 +4,7 @@ import { Creator, Transaction, User } from "@/entities/all";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
-  DollarSign, 
+  Coins, 
   TrendingUp, 
   Users, 
   Gift,
@@ -107,18 +107,23 @@ export default function CreatorDashboard() {
     );
   }
 
+  // Simple local icon component that renders the GH₵ currency sign
+  const CediIcon = ({ className = "" }) => (
+    <span className={["font-bold", className].join(" ")}>GH₵</span>
+  );
+
   const stats = [
     {
       title: "Total Earnings",
-  value: `GH₵ ${(creator.total_earnings || 0).toFixed(2)}`,
-      icon: DollarSign,
+      value: `GH₵ ${(creator.total_earnings || 0).toFixed(2)}`,
+      icon: CediIcon,
       color: "text-blue-600",
       bgColor: "bg-blue-50"
     },
     {
       title: "Available Balance",
-  value: `GH₵ ${(creator.available_balance || 0).toFixed(2)}`,
-      icon: TrendingUp,
+      value: `GH₵ ${(creator.available_balance || 0).toFixed(2)}`,
+      icon: CediIcon,
       color: "text-green-600",
       bgColor: "bg-green-50"
     },
@@ -169,7 +174,7 @@ export default function CreatorDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
-                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                    <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
                   </div>
                   <div className={`p-3 rounded-xl ${stat.bgColor}`}>
                     <stat.icon className={`w-6 h-6 ${stat.color}`} />

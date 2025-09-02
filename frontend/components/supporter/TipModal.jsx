@@ -8,6 +8,7 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 	const [name, setName] = useState("");
 	const [message, setMessage] = useState("");
 	const [isSending, setIsSending] = useState(false);
+	const presets = [5, 10, 50, 100];
 
 	const submit = async (e) => {
 		e.preventDefault();
@@ -47,10 +48,38 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 							</div>
 						</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Amount</label>
-							<Input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} required />
-						</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700">Amount</label>
+										<div className="flex flex-wrap gap-2 mb-2">
+											{presets.map((v) => (
+												<button
+													key={v}
+													type="button"
+													onClick={() => setAmount(String(v))}
+													className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+														parseFloat(amount || "0") === v
+															? "bg-blue-600 text-white border-blue-600"
+															: "bg-white text-gray-700 hover:bg-gray-50 border-gray-300"
+													}`}
+												>
+													GH₵ {v}
+												</button>
+											))}
+										</div>
+										<div className="relative">
+											<span className="absolute left-3 top-2.5 text-gray-500 select-none">GH₵</span>
+											<Input
+												className="pl-12"
+												type="number"
+												step="0.01"
+												min="0"
+												value={amount}
+												onChange={(e) => setAmount(e.target.value)}
+												placeholder="Enter amount"
+												required
+											/>
+										</div>
+									</div>
 
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Your name (optional)</label>
