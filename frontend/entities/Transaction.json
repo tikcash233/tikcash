@@ -40,6 +40,10 @@
     "payment_reference": {
       "type": "string",
       "description": "Payment processor reference"
+    },
+    "momo_number": {
+      "type": "string",
+      "description": "Recipient Ghana Mobile Money number for withdrawals"
     }
   },
   "required": [

@@ -68,14 +68,15 @@ export default function CreatorDashboard() {
     }
   };
 
-  const handleWithdrawal = async (amount) => {
+  const handleWithdrawal = async ({ amount, momo }) => {
     try {
       // Create withdrawal transaction
       await Transaction.create({
         creator_id: creator.id,
         amount: -amount,
         transaction_type: "withdrawal",
-        status: "pending"
+        status: "pending",
+        momo_number: momo
       });
       
       // Update creator balance
@@ -86,7 +87,7 @@ export default function CreatorDashboard() {
       setShowWithdrawModal(false);
       await loadDashboardData();
     } catch (error) {
-      console.error("Error processing withdrawal:", error);
+  console.error("Error processing withdrawal:", error);
     }
   };
 
