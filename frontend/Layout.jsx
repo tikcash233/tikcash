@@ -1,9 +1,9 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Home, User, Users, TrendingUp, Heart, Menu, X } from "lucide-react";
+import { Home, User, Users, TrendingUp, Heart, Menu, X, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const navigationItems = [
 	{
@@ -31,7 +31,20 @@ const navigationItems = [
 export default function Layout({ children, currentPageName }) {
 	const location = useLocation();
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+	const [showBackToTop, setShowBackToTop] = useState(false);
 	const isHome = currentPageName === "Home";
+
+	useEffect(() => {
+		const onScroll = () => {
+			try {
+				const y = window.scrollY || document.documentElement.scrollTop || 0;
+				setShowBackToTop(y > 300);
+			} catch {}
+		};
+		window.addEventListener("scroll", onScroll, { passive: true });
+		onScroll();
+		return () => window.removeEventListener("scroll", onScroll);
+	}, []);
 
 	return (
 		<div className="min-h-screen bg-white">
@@ -125,6 +138,17 @@ export default function Layout({ children, currentPageName }) {
 			<main className="flex-1">
 				{children}
 			</main>
+
+					{/* Back to Top */}
+					{showBackToTop && (
+						<button
+							aria-label="Back to top"
+							onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+							className="fixed bottom-6 right-6 md:bottom-8 md:right-8 h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-colors"
+						>
+							<ArrowUp className="w-5 h-5" />
+						</button>
+					)}
 
 			{/* Footer */}
 			{isHome && (

@@ -14,10 +14,10 @@ export default function EarningsOverview({ creator, onWithdraw }) {
 					<CreditCard className="w-4 h-4 text-blue-600" />
 					<CardTitle>Earnings Overview</CardTitle>
 				</div>
-				<Button
+								<Button
 					onClick={onWithdraw}
 					disabled={available <= 0}
-					className="bg-blue-600 hover:bg-blue-700 text-white gap-2 w-full sm:w-auto"
+									className="bg-green-600 hover:bg-green-700 text-white gap-2 w-full sm:w-auto"
 				>
 					<ArrowUpRight className="w-4 h-4" />
 					Withdraw
