@@ -2,10 +2,13 @@ import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AlertTriangle } from "lucide-react";
 
 export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 	const [amount, setAmount] = useState("");
 		const [momo, setMomo] = useState("");
+		const [isConfirming, setIsConfirming] = useState(false);
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const available = creator?.available_balance || 0;
 
 		const MIN_WITHDRAW = 10;
@@ -23,66 +26,101 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 		const value = amountNumber;
 		if (amountInvalid || momoInvalid) return;
 
-				const confirmMsg = `Withdraw ${value.toFixed(2)} cedis to ${momo}?`;
-				const ok = window.confirm(confirmMsg);
-				if (!ok) return;
-
-		onWithdraw?.({ amount: value, momo: momo.trim() });
+				// Move to styled confirmation step instead of browser confirm
+				setIsConfirming(true);
 	};
+
+	const handleFinalConfirm = () => {
+		const value = amountNumber;
+		if (amountInvalid || momoInvalid) return;
+		if (isSubmitting) return;
+		setIsSubmitting(true);
+		Promise.resolve(onWithdraw?.({ amount: value, momo: momo.trim() }))
+		  .finally(() => setIsSubmitting(false));
+	};
+
+	const maskedMomo = (momo || "").replace(/(\d{3})\d{4}(\d{3})/, "$1****$2");
 
 	return (
 		<div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
 			<Card className="max-w-md w-full">
 				<CardHeader>
-					<CardTitle>Withdraw Funds</CardTitle>
+					<CardTitle>{isConfirming ? "Confirm Withdrawal" : "Withdraw Funds"}</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<form onSubmit={handleSubmit} className="space-y-4">
-						<p className="text-sm text-gray-600">Available: GH₵ {available.toFixed(2)}</p>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Amount (GH₵)</label>
-							<Input
-								type="number"
-								step="0.01"
-								min={MIN_WITHDRAW}
-								max={available}
-								value={amount}
-								onChange={(e) => setAmount(e.target.value)}
-								placeholder={`Minimum GH₵ ${MIN_WITHDRAW.toFixed(2)}`}
-								required
-							/>
-							{amount && amountNumber < MIN_WITHDRAW && (
-								<p className="mt-1 text-xs text-red-600">Minimum withdrawal is GH₵ {MIN_WITHDRAW.toFixed(2)}</p>
-							)}
-							{amount && amountNumber > available && (
-								<p className="mt-1 text-xs text-red-600">Amount exceeds available balance</p>
-							)}
+					{isConfirming ? (
+						<div className="space-y-4">
+							<p className="text-sm text-gray-600">Available: GH₵ {available.toFixed(2)}</p>
+							<div className="rounded-lg border p-4 bg-gray-50">
+								<div className="flex items-center justify-between py-1">
+									<span className="text-sm text-gray-600">Amount</span>
+									<span className="font-semibold">GH₵ {amountNumber.toFixed(2)}</span>
+								</div>
+								<div className="flex items-center justify-between py-1">
+									<span className="text-sm text-gray-600">To Mobile Money</span>
+									<span className="font-semibold">{momo}</span>
+								</div>
+							</div>
+							<div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+								<AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+								<div className="text-sm text-amber-800">
+									<p className="font-semibold">Please review before confirming</p>
+									<p>This action will deduct from your available balance immediately.</p>
+								</div>
+							</div>
+							<div className="flex justify-end gap-2">
+								<Button type="button" variant="outline" onClick={() => setIsConfirming(false)}>Back</Button>
+								<Button type="button" onClick={handleFinalConfirm} disabled={isSubmitting}>{isSubmitting ? "Processing..." : "Confirm Withdraw"}</Button>
+							</div>
 						</div>
+					) : (
+						<form onSubmit={handleSubmit} className="space-y-4">
+							<p className="text-sm text-gray-600">Available: GH₵ {available.toFixed(2)}</p>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Mobile Money Number</label>
-							<Input
-								type="tel"
-								inputMode="numeric"
-								pattern="^(020|024|025|026|027|028|029|050|053|054|055|056|057|058|059)\d{7}$"
-								maxLength={10}
-								value={momo}
-								onChange={(e) => setMomo(e.target.value.replace(/[^0-9]/g, ''))}
-								placeholder="e.g. 0241234567"
-								required
-							/>
-							<p className="mt-1 text-xs text-gray-500">Must be a 10‑digit Ghana number starting with 020, 024, 054, 055, 059, 027, 057, 026, 056, 050, etc.</p>
-							{momo && momoInvalid && (
-								<p className="mt-1 text-xs text-red-600">Enter a valid Ghana mobile money number</p>
-							)}
-						</div>
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Amount (GH₵)</label>
+								<Input
+									type="number"
+									step="0.01"
+									min={MIN_WITHDRAW}
+									max={available}
+									value={amount}
+									onChange={(e) => setAmount(e.target.value)}
+									placeholder={`Minimum GH₵ ${MIN_WITHDRAW.toFixed(2)}`}
+									required
+								/>
+								{amount && amountNumber < MIN_WITHDRAW && (
+									<p className="mt-1 text-xs text-red-600">Minimum withdrawal is GH₵ {MIN_WITHDRAW.toFixed(2)}</p>
+								)}
+								{amount && amountNumber > available && (
+									<p className="mt-1 text-xs text-red-600">Amount exceeds available balance</p>
+								)}
+							</div>
 
-						<div className="flex justify-end gap-2">
-							<Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-							<Button type="submit" disabled={amountInvalid || momoInvalid}>Confirm Withdraw</Button>
-						</div>
-					</form>
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Mobile Money Number</label>
+								<Input
+									type="tel"
+									inputMode="numeric"
+									pattern="^(020|024|025|026|027|028|029|050|053|054|055|056|057|058|059)\d{7}$"
+									maxLength={10}
+									value={momo}
+									onChange={(e) => setMomo(e.target.value.replace(/[^0-9]/g, ''))}
+									placeholder="e.g. 0241234567"
+									required
+								/>
+								<p className="mt-1 text-xs text-gray-500">Must be a 10‑digit Ghana number starting with 020, 024, 054, 055, 059, 027, 057, 026, 056, 050, etc.</p>
+								{momo && momoInvalid && (
+									<p className="mt-1 text-xs text-red-600">Enter a valid Ghana mobile money number</p>
+								)}
+							</div>
+
+							<div className="flex justify-end gap-2">
+								<Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+								<Button type="submit" disabled={amountInvalid || momoInvalid}>Continue</Button>
+							</div>
+						</form>
+					)}
 				</CardContent>
 			</Card>
 		</div>

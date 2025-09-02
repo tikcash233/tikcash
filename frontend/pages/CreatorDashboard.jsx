@@ -17,9 +17,11 @@ import {
 import EarningsOverview from "../components/creator/EarningsOverview";
 import ShareLinkBar from "../components/creator/ShareLinkBar";
 import RecentTransactions from "../components/creator/RecentTransactions";
+import WithdrawalHistory from "../components/creator/WithdrawalHistory";
 import WithdrawalModal from "../components/creator/WithdrawalModal";
 import CreatorProfile from "../components/creator/CreatorProfile";
 import PerformanceChart from "../components/creator/PerformanceChart";
+import { useToast } from "@/components/ui/toast.jsx";
 
 export default function CreatorDashboard() {
   const [creator, setCreator] = useState(null);
@@ -27,6 +29,8 @@ export default function CreatorDashboard() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const { success, error } = useToast();
+  const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -70,6 +74,8 @@ export default function CreatorDashboard() {
 
   const handleWithdrawal = async ({ amount, momo }) => {
     try {
+  if (isSubmittingWithdraw) return;
+  setIsSubmittingWithdraw(true);
       // Create withdrawal transaction
       await Transaction.create({
         creator_id: creator.id,
@@ -86,8 +92,14 @@ export default function CreatorDashboard() {
       
       setShowWithdrawModal(false);
       await loadDashboardData();
+      const masked = (momo || "").replace(/(\d{3})\d{4}(\d{3})/, "$1****$2");
+      success(`Withdrawal of GH₵ ${amount.toFixed(2)} requested to ${masked}.`);
     } catch (error) {
   console.error("Error processing withdrawal:", error);
+      error("Failed to request withdrawal. Please try again.");
+    }
+    finally {
+      setIsSubmittingWithdraw(false);
     }
   };
 
@@ -206,6 +218,7 @@ export default function CreatorDashboard() {
           {/* Right Column */}
           <div className="space-y-8 overflow-x-hidden">
             <RecentTransactions transactions={transactions} />
+            <WithdrawalHistory transactions={transactions} />
           </div>
         </div>
 
