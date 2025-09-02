@@ -40,24 +40,24 @@ export default function RecentTransactions({ transactions = [] }) {
   const limited = tips.slice(0, displayCount);
 
   return (
-    <Card className="border-none shadow-lg">
+    <Card className="border-none shadow-lg w-full overflow-hidden">
       <CardHeader>
         <CardTitle>Recent Tips</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-hidden">
         {limited.length === 0 ? (
           <p className="text-gray-600">No tips yet.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-3 w-full">
             {limited.map((t) => (
               <li
                 key={t.id}
-                className="grid grid-cols-[auto_minmax(0,1fr)_max-content] items-center gap-3 p-3 rounded-xl border bg-white hover:bg-gray-50 transition-colors"
+                className="w-full max-w-full flex items-center gap-3 p-3 rounded-xl border bg-white hover:bg-gray-50 transition-colors"
               >
                 <div className="w-9 h-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
                   <Gift className="w-5 h-5" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-gray-900 truncate">
                     {t.supporter_name || "Supporter"}
                   </div>
@@ -68,7 +68,7 @@ export default function RecentTransactions({ transactions = [] }) {
                     {formatDate(t.created_date)}
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
+                <div className="flex flex-col items-end gap-1 ml-auto">
                   <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-sm font-semibold whitespace-nowrap tabular-nums">
                     {`GH₵ ${Number(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   </span>

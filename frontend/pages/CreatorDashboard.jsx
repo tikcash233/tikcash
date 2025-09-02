@@ -144,8 +144,8 @@ export default function CreatorDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-8 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center space-x-4 mb-4">
@@ -186,9 +186,9 @@ export default function CreatorDashboard() {
         </div>
 
         {/* Main Dashboard Grid */}
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-8 overflow-x-hidden">
           {/* Left Column */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-8 overflow-x-hidden">
             <EarningsOverview 
               creator={creator} 
               onWithdraw={() => setShowWithdrawModal(true)}
@@ -197,7 +197,7 @@ export default function CreatorDashboard() {
           </div>
 
           {/* Right Column */}
-          <div className="space-y-8">
+          <div className="space-y-8 overflow-x-hidden">
             <RecentTransactions transactions={transactions} />
           </div>
         </div>
