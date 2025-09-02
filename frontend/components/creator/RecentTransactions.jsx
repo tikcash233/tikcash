@@ -61,6 +61,9 @@ export default function RecentTransactions({ transactions = [] }) {
                   <div className="text-sm font-medium text-gray-900 truncate">
                     {t.supporter_name || "Supporter"}
                   </div>
+                  {(t.message || t.note) && (
+                    <div className="text-xs text-gray-600 truncate">“{t.message || t.note}”</div>
+                  )}
                   <div className="text-xs text-gray-500 truncate">
                     {formatDate(t.created_date)}
                   </div>

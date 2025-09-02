@@ -20,7 +20,7 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 				creator_id: creator?.id,
 				amount: value,
 				supporter_name: name || "Anonymous",
-				note: message,
+				message: message,
 				transaction_type: "tip",
 			});
 		} finally {
