@@ -19,8 +19,8 @@ export default function WithdrawalHistory({ transactions = [] }) {
     };
   }, []);
 
-  // Pagination size
-  const pageSize = 5;
+  // Pagination size (always 4 per page)
+  const pageSize = 4;
   const [page, setPage] = useState(1);
 
   const formatDate = (val) => {
@@ -155,7 +155,8 @@ export default function WithdrawalHistory({ transactions = [] }) {
                   className={
                     "rounded-full " +
                     (p === clampedPage
-                      ? "bg-gray-900 text-white border-gray-900"
+                      // Keep number clearly visible on mobile: darker text, subtle bg, solid border
+                      ? "bg-gray-100 text-gray-900 border-gray-400"
                       : "bg-white text-gray-700")
                   }
                   onClick={() => setPage(p)}
