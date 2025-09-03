@@ -42,7 +42,8 @@ export default function RecentTransactions({ transactions = [], tipSoundOn, onTo
     const list = Array.isArray(transactions)
       ? transactions.filter((t) => t.transaction_type === "tip")
       : [];
-    return list.sort((a, b) => (b.created_date || 0) - (a.created_date || 0));
+  const toTime = (t) => new Date(t.created_date || t.createdAt || 0).getTime();
+  return list.sort((a, b) => toTime(b) - toTime(a));
   }, [transactions]);
 
   // Reset to page 1 when data changes

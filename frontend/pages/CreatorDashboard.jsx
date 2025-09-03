@@ -47,19 +47,19 @@ export default function CreatorDashboard() {
     setTransactions((prev) => {
       const exists = prev.some((t) => t.id === tip.id);
       if (exists) return prev;
-      const next = [tip, ...prev];
-      // Ensure sorted by created_date desc and limit to 50
-      next.sort((a, b) => (b.created_date || 0) - (a.created_date || 0));
+  const next = [tip, ...prev];
+  // Ensure sorted by created_date desc (robust to string/number) and limit to 50
+  const toTime = (t) => new Date(t.created_date || t.createdAt || Date.now()).getTime();
+  next.sort((a, b) => toTime(b) - toTime(a));
       return next.slice(0, 50);
     });
   };
 
   // Subscribe to in-app bus
   useEffect(() => {
-    const off = RealtimeBus.on("transaction:tip", (tip) => {
+  const off = RealtimeBus.on("transaction:tip", (tip) => {
       if (!creator || tip.creator_id !== creator.id) return;
       setTipQueue((q) => [...q, tip]);
-      setUnreadTips((n) => n + 1);
       addIncomingTip(tip);
     });
     return off;
@@ -70,11 +70,10 @@ export default function CreatorDashboard() {
     let bc;
     try {
       bc = new BroadcastChannel("tikcash-events");
-      const onMsg = (e) => {
+  const onMsg = (e) => {
         const { type, payload } = e.data || {};
         if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
           setTipQueue((q) => [...q, payload]);
-          setUnreadTips((n) => n + 1);
           addIncomingTip(payload);
         }
       };
@@ -105,11 +104,11 @@ export default function CreatorDashboard() {
         const creatorProfile = creators[0];
         setCreator(creatorProfile);
         
-        // Load transactions for this creator
+        // Load transactions for this creator (load more to include older tips like yesterday)
         const creatorTransactions = await Transaction.filter(
           { creator_id: creatorProfile.id }, 
           '-created_date', 
-          20
+          50
         );
         setTransactions(creatorTransactions);
       }
