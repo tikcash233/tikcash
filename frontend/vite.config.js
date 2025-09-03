@@ -10,11 +10,12 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
-    strictPort: true,
+  port: 3000,
+  // Allow Vite to fall back to the next free port if 3000 is in use
+  strictPort: false,
   },
   preview: {
-    port: 3000,
+  port: 3000,
   },
   optimizeDeps: {
     esbuildOptions: {

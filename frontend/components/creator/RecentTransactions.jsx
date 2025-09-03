@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Gift } from "lucide-react";
+import { Gift, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function RecentTransactions({ transactions = [] }) {
   const [isMobile, setIsMobile] = useState(false);
@@ -18,7 +19,9 @@ export default function RecentTransactions({ transactions = [] }) {
     };
   }, []);
 
-  const displayCount = isMobile ? 3 : 8;
+  // Pagination size
+  const pageSize = 5;
+  const [page, setPage] = useState(1);
 
   const formatDate = (val) => {
     const d = new Date(val || Date.now());
@@ -34,10 +37,31 @@ export default function RecentTransactions({ transactions = [] }) {
     return `${dd} ${mm} ${yyyy}, ${hh}:${min}`;
   };
 
-  const tips = Array.isArray(transactions)
-    ? transactions.filter((t) => t.transaction_type === "tip")
-    : [];
-  const limited = tips.slice(0, displayCount);
+  const tips = useMemo(() => {
+    const list = Array.isArray(transactions)
+      ? transactions.filter((t) => t.transaction_type === "tip")
+      : [];
+    return list.sort((a, b) => (b.created_date || 0) - (a.created_date || 0));
+  }, [transactions]);
+
+  // Reset to page 1 when data changes
+  useEffect(() => { setPage(1); }, [tips.length]);
+
+  const totalPages = Math.max(1, Math.ceil(tips.length / pageSize));
+  const clampedPage = Math.min(totalPages, Math.max(1, page));
+  const start = (clampedPage - 1) * pageSize;
+  const visible = tips.slice(start, start + pageSize);
+  const showingFrom = tips.length === 0 ? 0 : start + 1;
+  const showingTo = Math.min(tips.length, start + visible.length);
+
+  // Page window (mobile fewer buttons)
+  const windowCount = isMobile ? 3 : 5;
+  const half = Math.floor(windowCount / 2);
+  let winStart = Math.max(1, clampedPage - half);
+  let winEnd = Math.min(totalPages, winStart + windowCount - 1);
+  winStart = Math.max(1, winEnd - windowCount + 1);
+  const pages = [];
+  for (let i = winStart; i <= winEnd; i++) pages.push(i);
 
   return (
     <Card className="border-none shadow-lg w-full overflow-hidden">
@@ -45,11 +69,11 @@ export default function RecentTransactions({ transactions = [] }) {
         <CardTitle>Recent Tips</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-hidden">
-        {limited.length === 0 ? (
+        {visible.length === 0 ? (
           <p className="text-gray-600">No tips yet.</p>
         ) : (
           <ul className="space-y-3 w-full">
-            {limited.map((t) => (
+            {visible.map((t) => (
               <li
                 key={t.id}
                 className="w-full max-w-full flex items-center gap-3 p-3 rounded-xl border bg-white hover:bg-gray-50 transition-colors"
@@ -87,6 +111,54 @@ export default function RecentTransactions({ transactions = [] }) {
             ))}
           </ul>
         )}
+
+        {/* Footer: showing and pagination */}
+        <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="text-xs text-gray-500">
+            Showing {showingFrom}-{showingTo} of {tips.length}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={clampedPage === 1}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              {pages.map((p) => (
+                <Button
+                  key={p}
+                  variant="outline"
+                  size="sm"
+                  className={
+                    "rounded-full " +
+                    (p === clampedPage
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "bg-white text-gray-700")
+                  }
+                  onClick={() => setPage(p)}
+                  aria-current={p === clampedPage ? "page" : undefined}
+                >
+                  {p}
+                </Button>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={clampedPage === totalPages}
+                aria-label="Next page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
