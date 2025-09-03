@@ -92,8 +92,7 @@ export default function CreatorDashboard() {
       
       setShowWithdrawModal(false);
       await loadDashboardData();
-      const masked = (momo || "").replace(/(\d{3})\d{4}(\d{3})/, "$1****$2");
-      success(`Withdrawal of GH₵ ${amount.toFixed(2)} requested to ${masked}.`);
+  success(`Withdrawal of GH₵ ${amount.toFixed(2)} requested to ${momo}.`);
     } catch (error) {
   console.error("Error processing withdrawal:", error);
       error("Failed to request withdrawal. Please try again.");
@@ -212,12 +211,20 @@ export default function CreatorDashboard() {
               creator={creator} 
               onWithdraw={() => setShowWithdrawModal(true)}
             />
+
+            {/* Recent Tips first on mobile */}
+            <div className="lg:hidden">
+              <RecentTransactions transactions={transactions} />
+            </div>
             <PerformanceChart transactions={transactions} />
           </div>
 
           {/* Right Column */}
           <div className="space-y-8 overflow-x-hidden">
-            <RecentTransactions transactions={transactions} />
+            {/* Keep Recent Tips in sidebar on desktop */}
+            <div className="hidden lg:block">
+              <RecentTransactions transactions={transactions} />
+            </div>
             <WithdrawalHistory transactions={transactions} />
           </div>
         </div>
