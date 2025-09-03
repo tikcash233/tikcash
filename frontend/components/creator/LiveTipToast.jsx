@@ -37,9 +37,9 @@ export default function LiveTipToast({ tip, onClose, soundEnabled = true, durati
   const message = tip.message || tip.note;
 
   return (
-    <div className="fixed z-50 bottom-4 right-4 left-4 sm:left-auto sm:right-6 sm:bottom-6">
+    <div className="fixed z-50 top-4 right-4 left-4 sm:left-auto sm:right-6 sm:top-6">
       <style>{`
-        @keyframes tc-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes tc-toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
       <div className="mx-auto sm:mx-0 w-full sm:w-[360px] rounded-2xl border bg-white shadow-xl ring-1 ring-black/5 overflow-hidden animate-[tc-toast-in_180ms_ease-out]">
         <div className="p-3 sm:p-4 flex items-start gap-3">

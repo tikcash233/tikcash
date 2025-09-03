@@ -41,12 +41,26 @@ export default function CreatorDashboard() {
     loadDashboardData();
   }, []);
 
+  // Helper to insert incoming tip into local transactions (keep newest first, dedupe)
+  const addIncomingTip = (tip) => {
+    if (!tip || tip.transaction_type !== "tip") return;
+    setTransactions((prev) => {
+      const exists = prev.some((t) => t.id === tip.id);
+      if (exists) return prev;
+      const next = [tip, ...prev];
+      // Ensure sorted by created_date desc and limit to 50
+      next.sort((a, b) => (b.created_date || 0) - (a.created_date || 0));
+      return next.slice(0, 50);
+    });
+  };
+
   // Subscribe to in-app bus
   useEffect(() => {
     const off = RealtimeBus.on("transaction:tip", (tip) => {
       if (!creator || tip.creator_id !== creator.id) return;
       setTipQueue((q) => [...q, tip]);
       setUnreadTips((n) => n + 1);
+      addIncomingTip(tip);
     });
     return off;
   }, [creator]);
@@ -61,6 +75,7 @@ export default function CreatorDashboard() {
         if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
           setTipQueue((q) => [...q, payload]);
           setUnreadTips((n) => n + 1);
+          addIncomingTip(payload);
         }
       };
       bc.addEventListener("message", onMsg);
