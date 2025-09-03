@@ -3,6 +3,23 @@ const KEY_CREATORS = "tikcash_creators";
 const KEY_TRANSACTIONS = "tikcash_transactions";
 const KEY_USER = "tikcash_user";
 
+// Tiny in-memory event bus for real-time-like updates in this SPA
+const Bus = (() => {
+  const listeners = new Map();
+  return {
+    on(event, cb) {
+      if (!listeners.has(event)) listeners.set(event, new Set());
+      listeners.get(event).add(cb);
+      return () => listeners.get(event)?.delete(cb);
+    },
+    emit(event, payload) {
+      (listeners.get(event) || []).forEach((cb) => {
+        try { cb(payload); } catch {}
+      });
+    }
+  };
+})();
+
 function load(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
@@ -147,6 +164,16 @@ export const Transaction = {
     };
     items.push(entity);
     save(KEY_TRANSACTIONS, items);
+    // Emit real-time event for tips
+    if (entity.transaction_type === "tip") {
+      Bus.emit("transaction:tip", entity);
+      // Cross-tab broadcast
+      try {
+        const bc = new BroadcastChannel("tikcash-events");
+        bc.postMessage({ type: "transaction:tip", payload: entity });
+        bc.close();
+      } catch {}
+    }
     return entity;
   }
 };
@@ -161,3 +188,6 @@ export const User = {
     return user;
   }
 };
+
+// Export bus so UI can subscribe
+export const RealtimeBus = Bus;

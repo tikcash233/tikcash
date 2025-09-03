@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Gift, ChevronLeft, ChevronRight } from "lucide-react";
+import { Gift, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function RecentTransactions({ transactions = [] }) {
+export default function RecentTransactions({ transactions = [], tipSoundOn, onToggleSound }) {
   const [isMobile, setIsMobile] = useState(false);
   const [openMessageId, setOpenMessageId] = useState(null);
 
@@ -66,8 +66,23 @@ export default function RecentTransactions({ transactions = [] }) {
 
   return (
     <Card className="border-none shadow-lg w-full overflow-hidden">
-      <CardHeader>
+      {/* Local keyframes for subtle enter animation */}
+      <style>{`
+        @keyframes tc-fade-in-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+      <CardHeader className="flex items-center justify-between">
         <CardTitle>Recent Tips</CardTitle>
+        {typeof tipSoundOn === 'boolean' && typeof onToggleSound === 'function' && (
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-white text-gray-700 hover:bg-gray-50 text-sm"
+            onClick={onToggleSound}
+            title={tipSoundOn ? "Sound alerts: On" : "Sound alerts: Off"}
+          >
+            {tipSoundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            <span className="hidden sm:inline">Sound alerts</span>
+          </button>
+        )}
       </CardHeader>
       <CardContent className="overflow-x-hidden">
         {visible.length === 0 ? (
@@ -75,7 +90,7 @@ export default function RecentTransactions({ transactions = [] }) {
         ) : (
           <ul className="space-y-3 w-full">
             {visible.map((t) => (
-              <li key={t.id} className="w-full max-w-full p-3 rounded-xl border bg-white hover:bg-gray-50 transition-colors">
+              <li key={t.id} className="w-full max-w-full p-3 rounded-xl border bg-white hover:bg-gray-50 transition-colors animate-[tc-fade-in-up_180ms_ease-out]">
                 {/* Top row */}
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">

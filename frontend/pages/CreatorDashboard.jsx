@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { Creator, Transaction, User } from "@/entities/all";
+import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -21,6 +21,7 @@ import WithdrawalHistory from "../components/creator/WithdrawalHistory";
 import WithdrawalModal from "../components/creator/WithdrawalModal";
 import CreatorProfile from "../components/creator/CreatorProfile";
 import PerformanceChart from "../components/creator/PerformanceChart";
+import LiveTipToast from "../components/creator/LiveTipToast";
 import { useToast } from "@/components/ui/toast.jsx";
 
 export default function CreatorDashboard() {
@@ -31,10 +32,52 @@ export default function CreatorDashboard() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const { success, error } = useToast();
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
+  const [liveTip, setLiveTip] = useState(null);
+  const [tipQueue, setTipQueue] = useState([]);
+  const [tipSoundOn, setTipSoundOn] = useState(true);
+  // bell removed; we just keep a toast + sound toggle
 
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  // Subscribe to in-app bus
+  useEffect(() => {
+    const off = RealtimeBus.on("transaction:tip", (tip) => {
+      if (!creator || tip.creator_id !== creator.id) return;
+      setTipQueue((q) => [...q, tip]);
+      setUnreadTips((n) => n + 1);
+    });
+    return off;
+  }, [creator]);
+
+  // Subscribe to BroadcastChannel for cross-tab tips
+  useEffect(() => {
+    let bc;
+    try {
+      bc = new BroadcastChannel("tikcash-events");
+      const onMsg = (e) => {
+        const { type, payload } = e.data || {};
+        if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
+          setTipQueue((q) => [...q, payload]);
+          setUnreadTips((n) => n + 1);
+        }
+      };
+      bc.addEventListener("message", onMsg);
+      return () => bc && bc.removeEventListener("message", onMsg);
+    } catch {
+      return () => {};
+    }
+  }, [creator]);
+
+  // Dequeue toasts one at a time
+  useEffect(() => {
+    if (!liveTip && tipQueue.length > 0) {
+      const [next, ...rest] = tipQueue;
+      setLiveTip(next);
+      setTipQueue(rest);
+    }
+  }, [liveTip, tipQueue]);
 
   const loadDashboardData = async () => {
     try {
@@ -161,7 +204,8 @@ export default function CreatorDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center space-x-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4 mb-4">
             <img 
               src={creator.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.display_name)}&size=64&background=2563eb&color=ffffff`}
               alt={creator.display_name}
@@ -176,6 +220,8 @@ export default function CreatorDashboard() {
                 </span>
               )}
             </div>
+            </div>
+            {/* Speaker toggle removed here; use the one inside Recent Tips section */}
           </div>
         </div>
 
@@ -214,7 +260,7 @@ export default function CreatorDashboard() {
 
             {/* Recent Tips first on mobile */}
             <div className="lg:hidden">
-              <RecentTransactions transactions={transactions} />
+              <RecentTransactions transactions={transactions} tipSoundOn={tipSoundOn} onToggleSound={() => setTipSoundOn(v=>!v)} />
             </div>
             <PerformanceChart transactions={transactions} />
           </div>
@@ -223,7 +269,7 @@ export default function CreatorDashboard() {
           <div className="space-y-8 overflow-x-hidden">
             {/* Keep Recent Tips in sidebar on desktop */}
             <div className="hidden lg:block">
-              <RecentTransactions transactions={transactions} />
+              <RecentTransactions transactions={transactions} tipSoundOn={tipSoundOn} onToggleSound={() => setTipSoundOn(v=>!v)} />
             </div>
             <WithdrawalHistory transactions={transactions} />
           </div>
@@ -237,6 +283,12 @@ export default function CreatorDashboard() {
             onClose={() => setShowWithdrawModal(false)}
           />
         )}
+        {/* Live Tip Toast */}
+        <LiveTipToast
+          tip={liveTip}
+          onClose={() => { setLiveTip(null); }}
+          soundEnabled={tipSoundOn}
+        />
       </div>
     </div>
   );
