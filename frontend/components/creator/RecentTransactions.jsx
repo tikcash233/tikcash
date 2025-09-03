@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export default function RecentTransactions({ transactions = [] }) {
   const [isMobile, setIsMobile] = useState(false);
+  const [openMessageId, setOpenMessageId] = useState(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -74,39 +75,56 @@ export default function RecentTransactions({ transactions = [] }) {
         ) : (
           <ul className="space-y-3 w-full">
             {visible.map((t) => (
-              <li
-                key={t.id}
-                className="w-full max-w-full flex items-center gap-3 p-3 rounded-xl border bg-white hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
-                  <Gift className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-gray-900 truncate">
-                    {t.supporter_name || "Supporter"}
+              <li key={t.id} className="w-full max-w-full p-3 rounded-xl border bg-white hover:bg-gray-50 transition-colors">
+                {/* Top row */}
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+                    <Gift className="w-5 h-5" />
                   </div>
-                  {(t.message || t.note) && (
-                    <div className="text-xs text-gray-600 truncate">“{t.message || t.note}”</div>
-                  )}
-                  <div className="text-xs text-gray-500 truncate">
-                    {formatDate(t.created_date)}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {t.supporter_name || "Supporter"}
+                    </div>
+                    {(t.message || t.note) && (
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs text-gray-600 truncate">“{t.message || t.note}”</div>
+                        <button
+                          type="button"
+                          className="text-xs text-blue-700 hover:text-blue-900 underline underline-offset-2"
+                          onClick={() => setOpenMessageId(openMessageId === t.id ? null : t.id)}
+                          aria-expanded={openMessageId === t.id}
+                        >
+                          {openMessageId === t.id ? "Hide" : "View"}
+                        </button>
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-500 truncate">
+                      {formatDate(t.created_date)}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 ml-auto">
+                    <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-sm font-semibold whitespace-nowrap tabular-nums">
+                      {`GH₵ ${Number(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    </span>
+                    <span
+                      className={
+                        `px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ` +
+                        (t.status === "pending"
+                          ? "bg-yellow-50 text-yellow-700"
+                          : "bg-green-50 text-green-700")
+                      }
+                    >
+                      {t.status || "completed"}
+                    </span>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1 ml-auto">
-                  <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-sm font-semibold whitespace-nowrap tabular-nums">
-                    {`GH₵ ${Number(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  </span>
-                  <span
-                    className={
-                      `px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ` +
-                      (t.status === "pending"
-                        ? "bg-yellow-50 text-yellow-700"
-                        : "bg-green-50 text-green-700")
-                    }
-                  >
-                    {t.status || "completed"}
-                  </span>
-                </div>
+
+                {/* Expanded full message */}
+                {openMessageId === t.id && (t.message || t.note) && (
+                  <div className="mt-3 rounded-lg border bg-gray-50 p-3 text-sm text-gray-800 whitespace-pre-wrap break-words">
+                    {t.message || t.note}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
