@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export default function CreatorCard({ creator, onTip }) {
 	if (!creator) return null;
-	const { display_name, tiktok_username, profile_image, bio, follower_count, total_earnings, is_verified } = creator;
+	const { display_name, tiktok_username, profile_image, bio } = creator;
 
 	return (
 		<Card className="border-none shadow-md hover:shadow-lg transition-shadow">
@@ -16,21 +16,13 @@ export default function CreatorCard({ creator, onTip }) {
 						className="w-14 h-14 rounded-full border"
 					/>
 					<div className="min-w-0">
-						<div className="flex items-center gap-2">
-							<h3 className="font-semibold truncate">{display_name}</h3>
-							{is_verified && (
-								<span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Verified</span>
-							)}
-						</div>
+						<h3 className="font-semibold truncate">{display_name}</h3>
 						<p className="text-sm text-gray-500 truncate">@{tiktok_username}</p>
 					</div>
 				</div>
 				{bio && <p className="text-sm text-gray-700 mb-4 line-clamp-3">{bio}</p>}
 
-				<div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-					<span>{(follower_count || 0).toLocaleString()} followers</span>
-					<span>GH₵ {(total_earnings || 0).toFixed(2)} earned</span>
-				</div>
+				{/* Followers and earnings removed for supporter view */}
 
 				<Button onClick={onTip} className="w-full">Tip Creator</Button>
 			</CardContent>

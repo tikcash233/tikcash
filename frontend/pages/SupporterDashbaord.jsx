@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Creator, Transaction } from "@/entities/all";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Heart, Star, TrendingUp, Users } from "lucide-react";
+import { Search } from "lucide-react";
 
 import CreatorCard from "../components/supporter/CreatorCard";
 import TipModal from "../components/supporter/TipModal";
@@ -85,8 +83,7 @@ export default function SupporterDashboard() {
   };
 
   const topCreators = creators.slice(0, 3);
-  const totalCreators = creators.length;
-  const totalEarnings = creators.reduce((sum, creator) => sum + (creator.total_earnings || 0), 0);
+  // Removed stats (Active Creators/Total Supported/Tips Sent), so derived totals are no longer needed here
 
   if (isLoading) {
     return (
@@ -110,45 +107,6 @@ export default function SupporterDashboard() {
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Show love to Ghanaian creators by sending tips and supporting their amazing content
           </p>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="border-none shadow-lg bg-gradient-to-r from-red-50 to-red-100">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-red-700 mb-1">Active Creators</p>
-                  <p className="text-3xl font-bold text-red-800">{totalCreators}</p>
-                </div>
-                <Users className="w-8 h-8 text-red-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-lg bg-gradient-to-r from-yellow-50 to-yellow-100">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-yellow-700 mb-1">Total Supported</p>
-                  <p className="text-3xl font-bold text-yellow-800">₵{totalEarnings.toFixed(0)}</p>
-                </div>
-                <Heart className="w-8 h-8 text-yellow-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-lg bg-gradient-to-r from-green-50 to-green-100">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-700 mb-1">Tips Sent</p>
-                  <p className="text-3xl font-bold text-green-800">1.2K+</p>
-                </div>
-                <TrendingUp className="w-8 h-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Top Creators Spotlight */}
