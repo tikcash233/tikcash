@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export default function CreatorDashboard() {
   const [tipQueue, setTipQueue] = useState([]);
   const [tipSoundOn, setTipSoundOn] = useState(true);
   // bell removed; we just keep a toast + sound toggle
+  const processedTipIdsRef = useRef(new Set()); // avoid double-applying same tip across bus+broadcast
 
   useEffect(() => {
     loadDashboardData();
@@ -55,12 +56,32 @@ export default function CreatorDashboard() {
     });
   };
 
+  // Apply tip impact to creator balances exactly once per tip id
+  const applyTipToCreator = (tip) => {
+    if (!tip || !creator || tip.creator_id !== creator.id) return;
+    const id = tip.id;
+    if (!id) return;
+    if (processedTipIdsRef.current.has(id)) return; // already applied
+    processedTipIdsRef.current.add(id);
+    const amt = Number(tip.amount || 0) || 0;
+    if (amt <= 0) return;
+    setCreator((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        total_earnings: (prev.total_earnings || 0) + amt,
+        available_balance: (prev.available_balance || 0) + amt,
+      };
+    });
+  };
+
   // Subscribe to in-app bus
   useEffect(() => {
   const off = RealtimeBus.on("transaction:tip", (tip) => {
       if (!creator || tip.creator_id !== creator.id) return;
       setTipQueue((q) => [...q, tip]);
       addIncomingTip(tip);
+      applyTipToCreator(tip);
     });
     return off;
   }, [creator]);
@@ -75,6 +96,7 @@ export default function CreatorDashboard() {
         if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
           setTipQueue((q) => [...q, payload]);
           addIncomingTip(payload);
+          applyTipToCreator(payload);
         }
       };
       bc.addEventListener("message", onMsg);
