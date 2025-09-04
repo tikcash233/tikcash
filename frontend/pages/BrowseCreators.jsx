@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Creator } from "@/entities/all";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, Users, TrendingUp } from "lucide-react";
+import { Search, TrendingUp } from "lucide-react";
 
 import CreatorCard from "../components/supporter/CreatorCard";
 import SearchFilters from "../components/supporter/SearchFilters";
@@ -18,7 +18,7 @@ export default function BrowseCreators() {
 
   const loadCreators = useCallback(async () => {
     try {
-      const sortField = sortBy === 'earnings' ? '-total_earnings' : '-follower_count';
+      const sortField = '-total_earnings'; // followers-based sorting removed
       const creatorList = await Creator.list(sortField);
       setCreators(creatorList);
     } catch (error) {
@@ -110,18 +110,6 @@ export default function BrowseCreators() {
                 <TrendingUp className="w-4 h-4" />
                 <span>Top Earners</span>
               </button>
-              
-              <button
-                onClick={() => setSortBy('followers')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
-                  sortBy === 'followers'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>Most Followed</span>
-              </button>
             </div>
           </div>
           
@@ -137,9 +125,7 @@ export default function BrowseCreators() {
             <h2 className="text-xl font-semibold text-gray-900">
               {filteredCreators.length} Creator{filteredCreators.length !== 1 ? 's' : ''} Found
             </h2>
-            <div className="text-sm text-gray-600">
-              Sorted by {sortBy === 'earnings' ? 'earnings' : 'followers'}
-            </div>
+            <div className="text-sm text-gray-600">Sorted by earnings</div>
           </div>
         </div>
 
