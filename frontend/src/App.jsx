@@ -1,9 +1,8 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '@/Layout.jsx';
 import Home from '@/pages/Home.jsx';
 import CreatorDashboard from '@/pages/CreatorDashboard.jsx';
-import BrowseCreators from '@/pages/BrowseCreators.jsx';
 import SupporterDashbaord from '@/pages/SupporterDashbaord.jsx';
 import { ToastProvider } from '@/components/ui/toast.jsx';
 
@@ -18,7 +17,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<WithLayout name="Home"><Home /></WithLayout>} />
           <Route path="/creator" element={<WithLayout name="CreatorDashboard"><CreatorDashboard /></WithLayout>} />
-          <Route path="/browse" element={<WithLayout name="BrowseCreators"><BrowseCreators /></WithLayout>} />
+          {/* Redirect legacy /browse to /support */}
+          <Route path="/browse" element={<Navigate to="/support" replace />} />
           <Route path="/support" element={<WithLayout name="SupporterDashboard"><SupporterDashbaord /></WithLayout>} />
         </Routes>
       </BrowserRouter>

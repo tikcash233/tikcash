@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Home, User, Users, TrendingUp, Heart, Menu, X, ArrowUp } from "lucide-react";
+import { Home, User, TrendingUp, Heart, Menu, X, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 
@@ -20,11 +20,6 @@ const navigationItems = [
 		title: "Support Creators",
 		url: createPageUrl("SupporterDashboard"),
 		icon: Heart,
-	},
-	{
-		title: "Browse Creators",
-		url: createPageUrl("BrowseCreators"),
-		icon: Users,
 	},
 ];
 
@@ -174,7 +169,6 @@ export default function Layout({ children, currentPageName }) {
 								<ul className="space-y-2 text-gray-400 text-sm">
 									<li><Link to={createPageUrl("CreatorDashboard")} className="hover:text-white transition-colors">For Creators</Link></li>
 									<li><Link to={createPageUrl("SupporterDashboard")} className="hover:text-white transition-colors">For Supporters</Link></li>
-									<li><Link to={createPageUrl("BrowseCreators")} className="hover:text-white transition-colors">Browse Creators</Link></li>
 								</ul>
 							</div>
 							<div>

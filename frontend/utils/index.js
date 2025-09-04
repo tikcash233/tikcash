@@ -3,7 +3,8 @@ export function createPageUrl(name) {
     Home: "/",
     CreatorDashboard: "/creator",
     SupporterDashboard: "/support",
-    BrowseCreators: "/browse",
+  // Browsing is consolidated on the supporter page; keep alias for any stray references
+  BrowseCreators: "/support",
   };
   return map[name] || "/";
 }
