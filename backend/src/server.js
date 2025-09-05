@@ -144,6 +144,13 @@ app.use((err, req, res, _next) => {
   if (err.name === 'ZodError') {
     return res.status(400).json({ error: 'Invalid request', details: err.errors });
   }
+  // Duplicate key (unique constraint) -> return friendly conflict
+  if (err.code === '23505') {
+    const msg = err.constraint === 'creators_tiktok_username_key'
+      ? 'TikTok username already exists. Choose a different one.'
+      : 'Duplicate value violates a unique constraint.';
+    return res.status(409).json({ error: msg });
+  }
   const status = err.status || 500;
   res.status(status).json({ error: err.message || 'Server error' });
 });
