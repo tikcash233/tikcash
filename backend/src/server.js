@@ -32,7 +32,10 @@ app.use(cors({
 }));
 
 if (process.env.NODE_ENV !== 'production') {
-  app.use(morgan('dev'));
+  // Log only problematic requests (status >= 400)
+  app.use(morgan('dev', {
+    skip: (req, res) => res.statusCode < 400,
+  }));
 }
 
 // Basic rate limit (tune for production / per-route)
@@ -47,6 +50,9 @@ app.get('/health', async (req, res) => {
     res.status(500).json({ status: 'error', error: e.message });
   }
 });
+
+// Avoid noisy 404 for favicon requests
+app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
 // Creators
 app.get('/api/creators', async (req, res, next) => {
@@ -132,6 +138,9 @@ app.get('/openapi.json', (req, res) => {
 
 // Error handler
 app.use((err, req, res, _next) => {
+  // Log unexpected errors to the console
+  // (still quiet for successful requests)
+  if (err) console.error(err);
   if (err.name === 'ZodError') {
     return res.status(400).json({ error: 'Invalid request', details: err.errors });
   }
