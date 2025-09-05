@@ -66,12 +66,6 @@ export default function SupporterDashboard() {
         status: "completed"
       });
 
-      // Update creator earnings
-      const updatedCreator = await Creator.update(selectedCreator.id, {
-        total_earnings: (selectedCreator.total_earnings || 0) + tipData.amount,
-        available_balance: (selectedCreator.available_balance || 0) + tipData.amount
-      });
-
       setSelectedCreator(null);
       await loadCreators();
       

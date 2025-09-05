@@ -164,11 +164,6 @@ export default function CreatorDashboard() {
         momo_number: momo
       });
       
-      // Update creator balance
-      await Creator.update(creator.id, {
-        available_balance: creator.available_balance - amount
-      });
-      
       setShowWithdrawModal(false);
       await loadDashboardData();
   success(`Withdrawal of GH₵ ${amount.toFixed(2)} requested to ${momo}.`);
