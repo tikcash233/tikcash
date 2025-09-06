@@ -104,7 +104,7 @@ export const User = {
       return r.user;
     } catch {
       // fallback demo if not logged in yet
-      return { id: 'demo', email: "user@example.com", name: "Demo User" };
+      return { id: 'demo', email: "user@example.com", name: "Demo User", email_verified: false };
     }
   },
   async register({ email, password, name }) {
@@ -116,6 +116,14 @@ export const User = {
     const r = await fetchJson('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
     try { localStorage.setItem('tikcash_token', r.token); } catch {}
     return r.user;
+  },
+  async requestVerify(email) {
+    await fetchJson('/api/auth/request-verify', { method: 'POST', body: JSON.stringify({ email }) });
+    return true;
+  },
+  async verify({ email, code }) {
+    await fetchJson('/api/auth/verify', { method: 'POST', body: JSON.stringify({ email, code }) });
+    return true;
   },
   logout() {
     try { localStorage.removeItem('tikcash_token'); } catch {}

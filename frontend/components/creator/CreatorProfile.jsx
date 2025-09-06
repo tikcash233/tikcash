@@ -64,6 +64,11 @@ export default function CreatorProfile({ onCreateProfile }) {
 				<CardTitle>Create your creator profile</CardTitle>
 			</CardHeader>
 			<CardContent>
+					{me && me.email_verified === false && (
+						<div className="mb-4 p-3 rounded bg-yellow-50 text-yellow-800 text-sm">
+							Please verify your email first. Go to Auth page to request and enter your code.
+						</div>
+					)}
 				<form className="space-y-4" onSubmit={onSubmit}>
 					<div>
 						<label className="block text-sm font-medium text-gray-700">TikTok Username</label>
@@ -123,7 +128,7 @@ export default function CreatorProfile({ onCreateProfile }) {
 						</select>
 					</div>
 					<div className="pt-2">
-						<Button type="submit" disabled={submitting} className="w-full">
+						<Button type="submit" disabled={submitting || me?.email_verified === false} className="w-full">
 							{submitting ? "Creating..." : "Create Profile"}
 						</Button>
 					</div>

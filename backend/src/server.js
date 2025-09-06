@@ -7,7 +7,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { pool } from './db.js';
 import { z } from 'zod';
-import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema } from './schemas.js';
+import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema, RequestVerifySchema, VerifyCodeSchema } from './schemas.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
@@ -46,6 +46,7 @@ app.use(limiter);
 
 // Auth helpers
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
@@ -110,10 +111,48 @@ app.post('/api/auth/login', async (req, res, next) => {
 
 app.get('/api/auth/me', authRequired, async (req, res, next) => {
   try {
-    const r = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [req.user.sub]);
+    const r = await pool.query('SELECT id, email, name, email_verified FROM users WHERE id = $1', [req.user.sub]);
     const user = r.rows[0];
     if (!user) return res.status(404).json({ error: 'Not found' });
     res.json({ user });
+  } catch (e) { next(e); }
+});
+
+// Request email verification code
+app.post('/api/auth/request-verify', async (req, res, next) => {
+  try {
+    const { email } = RequestVerifySchema.parse(req.body);
+    const r = await pool.query('SELECT id, email_verified FROM users WHERE email = $1', [email.toLowerCase()]);
+    const user = r.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.email_verified) return res.json({ ok: true });
+    const code = String(Math.floor(100000 + Math.random()*900000));
+    await pool.query('INSERT INTO email_verification_codes(user_id, email, code) VALUES($1,$2,$3)', [user.id, email.toLowerCase(), code]);
+    if (RESEND_API_KEY) {
+      // TODO: Integrate Resend here. For now, we only log to server.
+      console.log(`[email] Verification code for ${email}: ${code}`);
+    } else {
+      console.log(`[email:DEV] Verification code for ${email}: ${code}`);
+    }
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Verify code
+app.post('/api/auth/verify', async (req, res, next) => {
+  try {
+    const { email, code } = VerifyCodeSchema.parse(req.body);
+    const r = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    const user = r.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const vc = await pool.query(
+      'SELECT * FROM email_verification_codes WHERE user_id=$1 AND email=$2 AND code=$3 AND used_at IS NULL AND expires_at > now() ORDER BY created_at DESC LIMIT 1',
+      [user.id, email.toLowerCase(), code]
+    );
+    if (!vc.rows[0]) return res.status(400).json({ error: 'Invalid or expired code' });
+    await pool.query('UPDATE email_verification_codes SET used_at = now() WHERE id = $1', [vc.rows[0].id]);
+    await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [user.id]);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
@@ -129,6 +168,14 @@ app.get('/api/creators', async (req, res, next) => {
 app.post('/api/creators', async (req, res, next) => {
   try {
     const data = CreatorCreateSchema.parse(req.body);
+    // If an email is provided in created_by, require that user to be verified
+    if (data.created_by) {
+      const rr = await pool.query('SELECT email_verified FROM users WHERE email = $1', [String(data.created_by).toLowerCase()]);
+      const u = rr.rows[0];
+      if (!u || !u.email_verified) {
+        return res.status(403).json({ error: 'Please verify your email before creating a profile.' });
+      }
+    }
     const created = await createCreator(data);
     res.status(201).json(created);
   } catch (e) { next(e); }
@@ -188,6 +235,8 @@ app.get('/openapi.json', (req, res) => {
         get: { summary: "List creators", parameters: [], responses: { "200": { description: "List" } } },
         post: { summary: "Create creator", requestBody: {}, responses: { "201": { description: "Created" } } }
       },
+  "/api/auth/request-verify": { post: { summary: "Request email verification code", requestBody: {}, responses: { "200": { description: "OK" } } } },
+  "/api/auth/verify": { post: { summary: "Verify email code", requestBody: {}, responses: { "200": { description: "OK" } } } },
       "/api/creators/{id}": {
         get: { summary: "Get creator", parameters: [], responses: { "200": { description: "Creator" } } },
         patch: { summary: "Update creator", requestBody: {}, responses: { "200": { description: "Updated" } } }
