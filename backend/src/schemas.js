@@ -31,6 +31,13 @@ export const RegisterSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   name: z.string().min(1).optional(),
+    role: z.enum(['creator', 'supporter']).default('supporter'),
+    // Optional creator fields collected at registration if role = 'creator'
+    tiktok_username: z.string().min(1).optional(),
+    display_name: z.string().min(1).optional(),
+    phone_number: z.string().optional(),
+    preferred_payment_method: z.enum(['momo', 'bank_transfer']).optional(),
+    category: z.enum(['comedy', 'dance', 'music', 'education', 'lifestyle', 'fashion', 'food', 'sports', 'other']).optional(),
 });
 
 export const LoginSchema = z.object({

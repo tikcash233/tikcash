@@ -5,7 +5,8 @@ export function Button({ as: Comp = "button", variant = "default", size = "md", 
   const variants = {
     default: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
     outline: "border-2 border-blue-300 text-blue-700 bg-white hover:bg-blue-50 focus:ring-blue-500",
-    ghost: "text-blue-600 hover:bg-blue-50 focus:ring-blue-500"
+  ghost: "text-blue-600 hover:bg-blue-50 focus:ring-blue-500",
+  danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
   };
   const sizes = {
     sm: "px-3 py-1.5 text-sm",

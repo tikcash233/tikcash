@@ -188,6 +188,9 @@ export default function CreatorDashboard() {
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4">
+          <div className="mb-4 p-4 rounded bg-blue-50 text-blue-800 text-sm">
+            Creators need an account. Your email must be verified before creating your profile.
+          </div>
           <CreatorProfile onCreateProfile={handleCreateProfile} />
         </div>
       </div>

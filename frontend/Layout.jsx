@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Home, User, TrendingUp, Heart, Menu, X, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm.jsx";
 import { useState, useEffect } from "react";
 import { User as ApiUser } from "@/entities/all";
 import { useToast } from "@/components/ui/toast.jsx";
@@ -33,6 +34,7 @@ export default function Layout({ children, currentPageName }) {
 	const [loggedIn, setLoggedIn] = useState(false);
 	const navigate = useNavigate();
 	const { success } = useToast();
+	const [confirmLogout, setConfirmLogout] = useState(false);
 
 	useEffect(() => {
 		const onScroll = () => {
@@ -57,16 +59,17 @@ export default function Layout({ children, currentPageName }) {
 			return () => window.removeEventListener('storage', onStorage);
 		}, []);
 
-		const onLogout = () => {
-			const ok = window.confirm('Are you sure you want to log out?');
-			if (!ok) return;
+		const onLogout = () => { setConfirmLogout(true); };
+		const doLogout = () => {
 			ApiUser.logout();
 			setLoggedIn(false);
+			setConfirmLogout(false);
 			success('Logged out');
 			navigate('/auth');
 		};
 
 	return (
+		<>
 		<div className="min-h-screen bg-white">
 			<style>{`
 				:root {
@@ -99,7 +102,9 @@ export default function Layout({ children, currentPageName }) {
 							{/* Right side (desktop): nav + auth */}
 							<div className="hidden md:flex items-center space-x-3">
 								<nav className="flex space-x-1">
-									{navigationItems.map((item) => (
+									{navigationItems
+										.filter((item) => loggedIn || item.title === 'Home')
+										.map((item) => (
 										<Link
 											key={item.title}
 											to={item.url}
@@ -115,13 +120,17 @@ export default function Layout({ children, currentPageName }) {
 									))}
 								</nav>
 								{loggedIn ? (
-									<Button onClick={onLogout} className="bg-blue-600 hover:bg-blue-700 text-white">Logout</Button>
+									<Button onClick={onLogout} variant="danger" className="text-white">Logout</Button>
 								) : (
 									<Link to="/auth" className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">Login</Link>
 								)}
 							</div>
 
 							{/* Mobile Menu Button */}
+							<div className="md:hidden flex items-center gap-2">
+							{!loggedIn && (
+								<Link to="/auth" className="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">Login</Link>
+							)}
 							<button
 								onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
 								className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -132,6 +141,7 @@ export default function Layout({ children, currentPageName }) {
 									<Menu className="w-5 h-5" />
 								)}
 							</button>
+							</div>
 						</div>
 				</div>
 
@@ -139,7 +149,7 @@ export default function Layout({ children, currentPageName }) {
 				{mobileMenuOpen && (
 					<div className="md:hidden bg-white border-t border-gray-100 py-2">
 						<div className="max-w-7xl mx-auto px-4 space-y-1">
-							{navigationItems.map((item) => (
+							{navigationItems.filter((item)=> loggedIn || item.title==='Home').map((item) => (
 								<Link
 									key={item.title}
 									to={item.url}
@@ -156,7 +166,7 @@ export default function Layout({ children, currentPageName }) {
 							))}
 									<div className="pt-2">
 										{loggedIn ? (
-											<button onClick={() => { setMobileMenuOpen(false); onLogout(); }} className="w-full text-left px-3 py-3 rounded-lg text-sm font-medium text-white bg-blue-600">Logout</button>
+											<button onClick={() => { setMobileMenuOpen(false); onLogout(); }} className="w-full text-left px-3 py-3 rounded-lg text-sm font-medium text-white bg-red-600">Logout</button>
 										) : (
 											<Link to="/auth" onClick={() => setMobileMenuOpen(false)} className="w-full inline-block px-3 py-3 rounded-lg text-sm font-medium text-white bg-blue-600">Login</Link>
 										)}
@@ -224,5 +234,16 @@ export default function Layout({ children, currentPageName }) {
 				</footer>
 			)}
 		</div>
-	);
+
+	<ConfirmDialog
+			open={confirmLogout}
+			title="Log out?"
+			description="You will need to log in again to access your creator dashboard."
+			confirmText="Logout"
+			cancelText="Cancel"
+			onConfirm={doLogout}
+			onCancel={() => setConfirmLogout(false)}
+		/>
+	</>
+  );
 }

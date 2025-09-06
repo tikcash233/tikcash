@@ -47,6 +47,34 @@ app.use(limiter);
 // Auth helpers
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_FROM = process.env.RESEND_FROM_EMAIL || '';
+
+async function sendVerificationEmail(to, code) {
+  if (!RESEND_API_KEY || !RESEND_FROM) {
+    console.log(`[email:DEV] Verification code for ${to}: ${code}`);
+    return;
+  }
+  try {
+    const payload = {
+      from: RESEND_FROM,
+      to,
+      subject: 'Your TikCash verification code',
+      text: `Your TikCash verification code is ${code}. It expires in 15 minutes.`,
+    };
+    // Node 18+ has global fetch; if unavailable, this will throw and we log the code
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error('Failed to send email via Resend:', err?.message || err);
+    console.log(`[email:FALLBACK] Verification code for ${to}: ${code}`);
+  }
+}
 function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
@@ -80,13 +108,27 @@ app.get('/favicon.ico', (_req, res) => res.status(204).end());
 app.post('/api/auth/register', async (req, res, next) => {
   try {
     const data = RegisterSchema.parse(req.body);
-    const { email, password, name } = data;
+    const { email, password, name, role } = data;
     const hashed = await bcrypt.hash(password, 10);
     const r = await pool.query(
-      'INSERT INTO users(email, password_hash, name) VALUES($1,$2,$3) RETURNING id, email, name, created_at',
-      [email.toLowerCase(), hashed, name || null]
+      'INSERT INTO users(email, password_hash, name, role) VALUES($1,$2,$3,$4) RETURNING id, email, name, role, email_verified, created_at',
+      [email.toLowerCase(), hashed, name || null, role || 'supporter']
     );
     const user = r.rows[0];
+    // If registering as creator, optionally create the profile immediately
+    if ((role || 'supporter') === 'creator') {
+      const creatorPayload = {
+        tiktok_username: data.tiktok_username,
+        display_name: data.display_name || name || email.split('@')[0],
+        phone_number: data.phone_number,
+        preferred_payment_method: data.preferred_payment_method || 'momo',
+        category: data.category || 'other',
+        created_by: user.email,
+      };
+      if (creatorPayload.tiktok_username && creatorPayload.display_name) {
+        try { await createCreator(creatorPayload); } catch (err) { if (err?.code !== '23505') console.error('createCreator failed', err); }
+      }
+    }
     const token = signToken({ sub: user.id, email: user.email });
     res.status(201).json({ user, token });
   } catch (e) { 
@@ -94,24 +136,23 @@ app.post('/api/auth/register', async (req, res, next) => {
     next(e); 
   }
 });
-
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const data = LoginSchema.parse(req.body);
     const { email, password } = data;
-    const r = await pool.query('SELECT id, email, name, password_hash FROM users WHERE email = $1', [email.toLowerCase()]);
+  const r = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM users WHERE email = $1', [email.toLowerCase()]);
     const user = r.rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid email or password' });
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
     const token = signToken({ sub: user.id, email: user.email });
-    res.json({ user: { id: user.id, email: user.email, name: user.name }, token });
+  res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role, email_verified: user.email_verified }, token });
   } catch (e) { next(e); }
 });
 
 app.get('/api/auth/me', authRequired, async (req, res, next) => {
   try {
-    const r = await pool.query('SELECT id, email, name, email_verified FROM users WHERE id = $1', [req.user.sub]);
+  const r = await pool.query('SELECT id, email, name, role, email_verified FROM users WHERE id = $1', [req.user.sub]);
     const user = r.rows[0];
     if (!user) return res.status(404).json({ error: 'Not found' });
     res.json({ user });
@@ -127,13 +168,8 @@ app.post('/api/auth/request-verify', async (req, res, next) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.email_verified) return res.json({ ok: true });
     const code = String(Math.floor(100000 + Math.random()*900000));
-    await pool.query('INSERT INTO email_verification_codes(user_id, email, code) VALUES($1,$2,$3)', [user.id, email.toLowerCase(), code]);
-    if (RESEND_API_KEY) {
-      // TODO: Integrate Resend here. For now, we only log to server.
-      console.log(`[email] Verification code for ${email}: ${code}`);
-    } else {
-      console.log(`[email:DEV] Verification code for ${email}: ${code}`);
-    }
+  await pool.query('INSERT INTO email_verification_codes(user_id, email, code) VALUES($1,$2,$3)', [user.id, email.toLowerCase(), code]);
+  await sendVerificationEmail(email, code);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -165,18 +201,16 @@ app.get('/api/creators', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.post('/api/creators', async (req, res, next) => {
+app.post('/api/creators', authRequired, async (req, res, next) => {
   try {
-    const data = CreatorCreateSchema.parse(req.body);
-    // If an email is provided in created_by, require that user to be verified
-    if (data.created_by) {
-      const rr = await pool.query('SELECT email_verified FROM users WHERE email = $1', [String(data.created_by).toLowerCase()]);
-      const u = rr.rows[0];
-      if (!u || !u.email_verified) {
-        return res.status(403).json({ error: 'Please verify your email before creating a profile.' });
-      }
-    }
-    const created = await createCreator(data);
+  const body = CreatorCreateSchema.parse(req.body);
+  // Enforce account + verified email
+  const ur = await pool.query('SELECT email, email_verified FROM users WHERE id = $1', [req.user.sub]);
+  const u = ur.rows[0];
+  if (!u) return res.status(401).json({ error: 'Unauthorized' });
+  if (!u.email_verified) return res.status(403).json({ error: 'Please verify your email before creating a profile.' });
+  const payload = { ...body, created_by: u.email };
+  const created = await createCreator(payload);
     res.status(201).json(created);
   } catch (e) { next(e); }
 });
@@ -233,7 +267,7 @@ app.get('/openapi.json', (req, res) => {
   "/api/auth/me": { get: { summary: "Me", responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } } } },
       "/api/creators": {
         get: { summary: "List creators", parameters: [], responses: { "200": { description: "List" } } },
-        post: { summary: "Create creator", requestBody: {}, responses: { "201": { description: "Created" } } }
+  post: { summary: "Create creator (auth + verified required)", requestBody: {}, responses: { "201": { description: "Created" }, "401": { description: "Unauthorized" }, "403": { description: "Email not verified" } } }
       },
   "/api/auth/request-verify": { post: { summary: "Request email verification code", requestBody: {}, responses: { "200": { description: "OK" } } } },
   "/api/auth/verify": { post: { summary: "Verify email code", requestBody: {}, responses: { "200": { description: "OK" } } } },
