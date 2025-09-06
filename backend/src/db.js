@@ -9,8 +9,10 @@ if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL is not set');
 }
 
+const connectionString = (process.env.DATABASE_URL || '').replace(/^['"]|['"]$/g, '');
+
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
