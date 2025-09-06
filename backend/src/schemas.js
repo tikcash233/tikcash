@@ -25,3 +25,15 @@ export const TransactionCreateSchema = z.object({
   payment_reference: z.string().optional(),
   momo_number: z.string().optional(),
 });
+
+// Auth
+export const RegisterSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  name: z.string().min(1).optional(),
+});
+
+export const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});

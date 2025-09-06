@@ -19,10 +19,17 @@ const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && impor
   ? import.meta.env.VITE_API_URL
   : ((typeof window !== 'undefined' && window.__API_BASE__) || 'http://localhost:5000');
 
+function getAuthHeaders() {
+  try {
+    const t = localStorage.getItem('tikcash_token');
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  } catch { return {}; }
+}
+
 async function fetchJson(path, options) {
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     ...options,
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -92,8 +99,26 @@ export const Transaction = {
 
 export const User = {
   async me() {
-    // For now, just return a demo user
-    return { id: 'demo', email: "user@example.com", name: "Demo User" };
+    try {
+      const r = await fetchJson('/api/auth/me');
+      return r.user;
+    } catch {
+      // fallback demo if not logged in yet
+      return { id: 'demo', email: "user@example.com", name: "Demo User" };
+    }
+  },
+  async register({ email, password, name }) {
+    const r = await fetchJson('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name }) });
+    try { localStorage.setItem('tikcash_token', r.token); } catch {}
+    return r.user;
+  },
+  async login({ email, password }) {
+    const r = await fetchJson('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    try { localStorage.setItem('tikcash_token', r.token); } catch {}
+    return r.user;
+  },
+  logout() {
+    try { localStorage.removeItem('tikcash_token'); } catch {}
   }
 };
 

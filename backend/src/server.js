@@ -7,7 +7,9 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { pool } from './db.js';
 import { z } from 'zod';
-import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema } from './schemas.js';
+import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema } from './schemas.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
 import { listTransactionsForCreator, createTipAndApply, createTransaction } from './models/transactions.js';
 
@@ -42,6 +44,25 @@ if (process.env.NODE_ENV !== 'production') {
 const limiter = rateLimit({ windowMs: 60 * 1000, max: 200 });
 app.use(limiter);
 
+// Auth helpers
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+function signToken(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
+function authRequired(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ')
+    ? header.slice(7)
+    : (req.cookies?.token || null);
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
 app.get('/health', async (req, res) => {
   try {
     const r = await pool.query('SELECT 1 as ok');
@@ -53,6 +74,48 @@ app.get('/health', async (req, res) => {
 
 // Avoid noisy 404 for favicon requests
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
+
+// Auth routes
+app.post('/api/auth/register', async (req, res, next) => {
+  try {
+    const data = RegisterSchema.parse(req.body);
+    const { email, password, name } = data;
+    const hashed = await bcrypt.hash(password, 10);
+    const r = await pool.query(
+      'INSERT INTO users(email, password_hash, name) VALUES($1,$2,$3) RETURNING id, email, name, created_at',
+      [email.toLowerCase(), hashed, name || null]
+    );
+    const user = r.rows[0];
+    const token = signToken({ sub: user.id, email: user.email });
+    res.status(201).json({ user, token });
+  } catch (e) { 
+    if (e.code === '23505') return res.status(409).json({ error: 'Email already in use.' });
+    next(e); 
+  }
+});
+
+app.post('/api/auth/login', async (req, res, next) => {
+  try {
+    const data = LoginSchema.parse(req.body);
+    const { email, password } = data;
+    const r = await pool.query('SELECT id, email, name, password_hash FROM users WHERE email = $1', [email.toLowerCase()]);
+    const user = r.rows[0];
+    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
+    const token = signToken({ sub: user.id, email: user.email });
+    res.json({ user: { id: user.id, email: user.email, name: user.name }, token });
+  } catch (e) { next(e); }
+});
+
+app.get('/api/auth/me', authRequired, async (req, res, next) => {
+  try {
+    const r = await pool.query('SELECT id, email, name FROM users WHERE id = $1', [req.user.sub]);
+    const user = r.rows[0];
+    if (!user) return res.status(404).json({ error: 'Not found' });
+    res.json({ user });
+  } catch (e) { next(e); }
+});
 
 // Creators
 app.get('/api/creators', async (req, res, next) => {
@@ -118,6 +181,9 @@ app.get('/openapi.json', (req, res) => {
     info: { title: "TikCash API", version: "1.0.0" },
     paths: {
       "/health": { get: { summary: "Health check", responses: { "200": { description: "OK" } } } },
+  "/api/auth/register": { post: { summary: "Register", requestBody: {}, responses: { "201": { description: "Created" } } } },
+  "/api/auth/login": { post: { summary: "Login", requestBody: {}, responses: { "200": { description: "OK" } } } },
+  "/api/auth/me": { get: { summary: "Me", responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } } } },
       "/api/creators": {
         get: { summary: "List creators", parameters: [], responses: { "200": { description: "List" } } },
         post: { summary: "Create creator", requestBody: {}, responses: { "201": { description: "Created" } } }

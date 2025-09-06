@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS creators (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tiktok_username TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
+  email TEXT UNIQUE,
+  password_hash TEXT,
   bio TEXT,
   profile_image TEXT,
   follower_count INTEGER NOT NULL DEFAULT 0,
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS creators (
 CREATE INDEX IF NOT EXISTS creators_category_idx ON creators(category);
 CREATE INDEX IF NOT EXISTS creators_total_earnings_idx ON creators(total_earnings DESC);
 CREATE INDEX IF NOT EXISTS creators_created_by_idx ON creators(created_by);
+CREATE INDEX IF NOT EXISTS creators_email_idx ON creators(email);
 
 -- transactions table
 CREATE TABLE IF NOT EXISTS transactions (

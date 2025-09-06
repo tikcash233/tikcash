@@ -3,11 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { User } from "@/entities/all";
+import { useToast } from "@/components/ui/toast.jsx";
 
 // Minimal profile creation form. Calls onCreateProfile with the fields the dashboard expects.
 export default function CreatorProfile({ onCreateProfile }) {
 	const [me, setMe] = useState(null);
 	const [loading, setLoading] = useState(true);
+	const [submitting, setSubmitting] = useState(false);
+	const { success, error } = useToast();
 		const [form, setForm] = useState({
 			tiktok_username: "",
 			display_name: "",
@@ -31,12 +34,20 @@ export default function CreatorProfile({ onCreateProfile }) {
 
 	const onSubmit = async (e) => {
 		e.preventDefault();
-		if (!onCreateProfile) return;
+		if (!onCreateProfile || submitting) return;
+		setSubmitting(true);
 		const payload = {
 			...form,
 			created_by: me?.email,
 		};
-		await onCreateProfile(payload);
+		try {
+			await onCreateProfile(payload);
+			success("Profile created successfully.");
+		} catch (e) {
+			error("Failed to create profile. Please try again.");
+		} finally {
+			setSubmitting(false);
+		}
 	};
 
 	if (loading) {
@@ -112,7 +123,9 @@ export default function CreatorProfile({ onCreateProfile }) {
 						</select>
 					</div>
 					<div className="pt-2">
-						<Button type="submit" className="w-full">Create Profile</Button>
+						<Button type="submit" disabled={submitting} className="w-full">
+							{submitting ? "Creating..." : "Create Profile"}
+						</Button>
 					</div>
 				</form>
 			</CardContent>

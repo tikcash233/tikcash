@@ -16,6 +16,7 @@ Production-ready Node.js API using Express and PostgreSQL (Neon) for the TikCash
    - Copy `.env.example` to `.env` and set:
      - DATABASE_URL=postgresql://USER:PASSWORD@HOST/DB?sslmode=require
      - CORS_ORIGINS=http://localhost:3000 (or your frontend URL)
+   - JWT_SECRET=your-long-random-secret
    - PORT=5000 (optional)
 3) Install dependencies
    - Windows CMD
@@ -33,6 +34,9 @@ Production-ready Node.js API using Express and PostgreSQL (Neon) for the TikCash
 
 ## API
 - GET /health
+- POST /api/auth/register
+- POST /api/auth/login
+- GET /api/auth/me
 - GET /api/creators?sort=-total_earnings&category=food&search=ama
 - POST /api/creators
 - PATCH /api/creators/:id
