@@ -7,7 +7,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { pool } from './db.js';
 import { z } from 'zod';
-import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema, RequestVerifySchema, VerifyCodeSchema } from './schemas.js';
+import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema, RequestVerifySchema, VerifyCodeSchema, ResetWithPinSchema, ChangePasswordSchema } from './schemas.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
@@ -127,27 +127,23 @@ app.get('/health', async (req, res) => {
 // Avoid noisy 404 for favicon requests
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
+// Toggle: skip email verification in this mode; can be re-enabled later
+const VERIFY_EMAIL = (process.env.VERIFY_EMAIL || 'false').toLowerCase() === 'true';
+
 // Auth routes
 app.post('/api/auth/register', async (req, res, next) => {
   try {
     const data = RegisterSchema.parse(req.body);
-    const { email, password, name, role } = data;
+    const { email, password, name, role, recovery_pin } = data;
     const hashed = await bcrypt.hash(password, 10);
+    const pinHash = await bcrypt.hash(recovery_pin, 10);
     const r = await pool.query(
-      'INSERT INTO users(email, password_hash, name, role) VALUES($1,$2,$3,$4) RETURNING id, email, name, role, email_verified, created_at',
-      [email.toLowerCase(), hashed, name || null, role || 'supporter']
+      'INSERT INTO users(email, password_hash, name, role, email_verified, recovery_pin_hash) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT (email) DO NOTHING RETURNING id, email, name, role, email_verified, created_at',
+      [email.toLowerCase(), hashed, name || null, role || 'supporter', VERIFY_EMAIL ? false : true, pinHash]
     );
     const user = r.rows[0];
-    // Auto-send verification code on signup
-    let devCode;
-    try {
-      const code = String(Math.floor(100000 + Math.random()*900000));
-      await pool.query('INSERT INTO email_verification_codes(user_id, email, code) VALUES($1,$2,$3)', [user.id, user.email.toLowerCase(), code]);
-      await sendVerificationEmail(user.email, code);
-      if ((process.env.NODE_ENV || 'development') !== 'production') devCode = code;
-    } catch (err) {
-      console.error('Failed to queue verification email:', err?.message || err);
-    }
+    if (!user) return res.status(409).json({ error: 'Email already in use.' });
+    // If VERIFY_EMAIL is true, you can re-enable code sending here later.
     // If registering as creator, optionally create the profile immediately
     if ((role || 'supporter') === 'creator') {
       const creatorPayload = {
@@ -163,13 +159,50 @@ app.post('/api/auth/register', async (req, res, next) => {
       }
     }
   const token = signToken({ sub: user.id, email: user.email });
-  const payload = { user, token };
-  if (devCode) payload.dev_code = devCode;
-  res.status(201).json(payload);
+  res.status(201).json({ user, token });
   } catch (e) { 
     if (e.code === '23505') return res.status(409).json({ error: 'Email already in use.' });
     next(e); 
   }
+});
+
+// Reset password with 4-digit PIN (no email needed)
+app.post('/api/auth/reset-with-pin', async (req, res, next) => {
+  try {
+    const { email, pin, new_password } = ResetWithPinSchema.parse(req.body);
+    const ur = await pool.query('SELECT id, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE email = $1', [email.toLowerCase()]);
+    const u = ur.rows[0];
+    // Do not reveal existence
+    if (!u) return res.status(200).json({ ok: true });
+    if (u.pin_locked_until && new Date(u.pin_locked_until) > new Date()) {
+      return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+    }
+    const ok = u.recovery_pin_hash && await bcrypt.compare(pin, u.recovery_pin_hash);
+    if (!ok) {
+      const attempts = (u.failed_pin_attempts || 0) + 1;
+      const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
+      await pool.query('UPDATE users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [u.id, attempts, lockUntil]);
+      return res.status(400).json({ error: 'Invalid PIN.' });
+    }
+    const newHash = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [u.id, newHash]);
+    return res.status(200).json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Change password for logged-in users
+app.post('/api/auth/change-password', authRequired, async (req, res, next) => {
+  try {
+    const { current_password, new_password } = ChangePasswordSchema.parse(req.body);
+    const ur = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.sub]);
+    const u = ur.rows[0];
+    if (!u?.password_hash) return res.status(400).json({ error: 'No password set.' });
+    const match = await bcrypt.compare(current_password, u.password_hash);
+    if (!match) return res.status(400).json({ error: 'Current password is incorrect.' });
+    const newHash = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password_hash=$2 WHERE id=$1', [req.user.sub, newHash]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
 });
 app.post('/api/auth/login', async (req, res, next) => {
   try {
@@ -339,6 +372,13 @@ app.get('/openapi.json', (req, res) => {
       },
       "/api/transactions": {
         post: { summary: "Create transaction", requestBody: {}, responses: { "201": { description: "Created" } } }
+      }
+      ,
+      "/api/auth/reset-with-pin": {
+        post: { summary: "Reset password with 4-digit PIN", requestBody: {}, responses: { "200": { description: "OK" } } }
+      },
+      "/api/auth/change-password": {
+        post: { summary: "Change password (logged in)", requestBody: {}, responses: { "200": { description: "OK" } } }
       }
     }
   });

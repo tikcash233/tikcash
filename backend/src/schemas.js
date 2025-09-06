@@ -56,6 +56,8 @@ export const RegisterSchema = z.object({
   }, z.string().optional()),
   preferred_payment_method: z.enum(['momo']).optional(),
     category: z.enum(['comedy', 'dance', 'music', 'education', 'lifestyle', 'fashion', 'food', 'sports', 'other']).optional(),
+  // 4-digit recovery PIN for password resets without email
+  recovery_pin: z.string().regex(/^\d{4}$/, 'Enter a 4-digit PIN'),
 }).superRefine((val, ctx) => {
   // At registration time, creator fields are optional to keep signup simple.
   // If the user provided a phone number, validate the Ghana format.
@@ -83,4 +85,17 @@ export const RequestVerifySchema = z.object({
 export const VerifyCodeSchema = z.object({
   email: z.string().email(),
   code: z.string().min(4).max(8),
+});
+
+// Password reset using 4-digit recovery PIN
+export const ResetWithPinSchema = z.object({
+  email: z.string().email(),
+  pin: z.string().regex(/^\d{4}$/, 'Enter the 4-digit PIN'),
+  new_password: z.string().min(8),
+});
+
+// Change password for logged-in users
+export const ChangePasswordSchema = z.object({
+  current_password: z.string().min(8),
+  new_password: z.string().min(8),
 });

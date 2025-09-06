@@ -22,6 +22,7 @@ export default function Auth() {
   const [payment, setPayment] = useState('momo');
   const [category, setCategory] = useState('other');
   const [errors, setErrors] = useState({});
+  const [recoveryPin, setRecoveryPin] = useState('');
   const { success, error } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
@@ -48,6 +49,7 @@ export default function Auth() {
           const ph = String(phone || '');
           if (!/^\+233\d{9}$/.test(ph)) nextErrors.phone = 'Enter a valid Ghana number as +233 then 9 digits (e.g., +233241234567).';
         }
+        if (!/^\d{4}$/.test(recoveryPin)) nextErrors.recoveryPin = 'Enter a 4-digit PIN.';
       }
       if (Object.keys(nextErrors).length) {
         setErrors(nextErrors);
@@ -62,12 +64,12 @@ export default function Auth() {
             phone_number: phone,
             preferred_payment_method: payment,
             category,
-          } : {})
+          } : {}),
+          recovery_pin: recoveryPin
         });
-        // Request code right away; show verify UI
-        try { await User.requestVerify(email); } catch {}
-        setNeedsVerify(true);
-        success('Account created. Check your email for a 6‑digit code.');
+        // No email verification flow; go straight in
+        success('Account created.');
+        navigate(role === 'creator' ? '/creator' : '/');
       } else {
         await User.login({ email, password });
         success('Logged in.');
@@ -184,7 +186,7 @@ export default function Auth() {
           </div>
           <Button type="submit" disabled={loading} className="w-full">{loading ? 'Please wait...' : (mode === 'register' ? 'Sign up' : 'Log in')}</Button>
         </form>
-        ) : (
+  ) : (
         <form onSubmit={onVerify} className="space-y-3">
           <div>
             <label className="block text-sm text-gray-700 mb-1">Email</label>
@@ -200,11 +202,22 @@ export default function Auth() {
           </div>
         </form>
         )}
+        {/* Recovery PIN field (register) */}
+        {!needsVerify && mode === 'register' && (
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">Recovery PIN (4 digits)</label>
+            <Input value={recoveryPin} onChange={(e)=>{ setRecoveryPin(e.target.value.replace(/\D/g,'').slice(0,4)); if (errors.recoveryPin) setErrors(prev=>({ ...prev, recoveryPin: undefined })); }} placeholder="••••" inputMode="numeric" />
+            {errors.recoveryPin && (<p className="text-sm text-red-600 mt-1">{errors.recoveryPin}</p>)}
+          </div>
+        )}
         <div className="text-sm text-gray-600">
           {mode === 'register' ? (
             <button className="underline" onClick={()=>setMode('login')}>Have an account? Log in</button>
           ) : (
-            <button className="underline" onClick={()=>setMode('register')}>New here? Create an account</button>
+            <div className="flex items-center justify-between">
+              <button className="underline" onClick={()=>setMode('register')}>New here? Create an account</button>
+              <a className="underline" href="/reset">Forgot password?</a>
+            </div>
           )}
         </div>
       </div>

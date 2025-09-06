@@ -108,7 +108,7 @@ export const User = {
     }
   },
   async register({ email, password, name, role = 'supporter' }) {
-    const r = await fetchJson('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name, role }) });
+  const r = await fetchJson('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name, role, recovery_pin: arguments[0].recovery_pin }) });
     try { localStorage.setItem('tikcash_token', r.token); } catch {}
     return r.user;
   },
@@ -127,6 +127,12 @@ export const User = {
   },
   logout() {
     try { localStorage.removeItem('tikcash_token'); } catch {}
+  }
+};
+
+export const Password = {
+  async resetWithPin({ email, pin, new_password }) {
+    return await fetchJson('/api/auth/reset-with-pin', { method: 'POST', body: JSON.stringify({ email, pin, new_password }) });
   }
 };
 
