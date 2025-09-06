@@ -48,21 +48,39 @@ app.use(limiter);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || '';
+const RESEND_SEND_IN_DEV = (process.env.RESEND_SEND_IN_DEV || 'false').toLowerCase() === 'true';
+const RESEND_TEST_EMAIL = (process.env.RESEND_TEST_EMAIL || '').toLowerCase();
 
 async function sendVerificationEmail(to, code) {
-  if (!RESEND_API_KEY || !RESEND_FROM) {
-    console.log(`[email:DEV] Verification code for ${to}: ${code}`);
+  const isProd = process.env.NODE_ENV === 'production';
+  const from = isProd ? (RESEND_FROM || 'onboarding@resend.dev') : 'onboarding@resend.dev';
+  const toLower = String(to || '').toLowerCase();
+
+  // Development-friendly behavior: by default, don't call Resend.
+  if (!isProd) {
+    if (!RESEND_SEND_IN_DEV) {
+      console.log(`[email:DEV] Verification code for ${toLower}: ${code}`);
+      return;
+    }
+    // If sending in dev is enabled, only allow a single test recipient (your own email)
+    if (RESEND_TEST_EMAIL && toLower !== RESEND_TEST_EMAIL) {
+      console.log(`[email:DEV] Skipping send to ${toLower}. Allowed test email is ${RESEND_TEST_EMAIL}. Code: ${code}`);
+      return;
+    }
+  }
+  // If we reach here, attempt real send (production or explicitly enabled dev)
+  if (!RESEND_API_KEY) {
+    console.log(`[email:DEV] Verification code for ${toLower}: ${code}`);
     return;
   }
   try {
     const payload = {
-      from: RESEND_FROM,
+      from,
       to,
       subject: 'Your TikCash verification code',
       text: `Your TikCash verification code is ${code}. It expires in 15 minutes.`,
     };
-    // Node 18+ has global fetch; if unavailable, this will throw and we log the code
-    await fetch('https://api.resend.com/emails', {
+    const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
@@ -70,8 +88,13 @@ async function sendVerificationEmail(to, code) {
       },
       body: JSON.stringify(payload),
     });
+  if (!resp.ok) {
+      const body = await resp.text();
+      console.error(`Resend API error: ${resp.status} ${resp.statusText} - ${body}`);
+      throw new Error(`Resend API responded with ${resp.status}`);
+    }
   } catch (err) {
-    console.error('Failed to send email via Resend:', err?.message || err);
+    console.error('Failed to send verification email:', err?.message || err);
     console.log(`[email:FALLBACK] Verification code for ${to}: ${code}`);
   }
 }
@@ -115,6 +138,16 @@ app.post('/api/auth/register', async (req, res, next) => {
       [email.toLowerCase(), hashed, name || null, role || 'supporter']
     );
     const user = r.rows[0];
+    // Auto-send verification code on signup
+    let devCode;
+    try {
+      const code = String(Math.floor(100000 + Math.random()*900000));
+      await pool.query('INSERT INTO email_verification_codes(user_id, email, code) VALUES($1,$2,$3)', [user.id, user.email.toLowerCase(), code]);
+      await sendVerificationEmail(user.email, code);
+      if ((process.env.NODE_ENV || 'development') !== 'production') devCode = code;
+    } catch (err) {
+      console.error('Failed to queue verification email:', err?.message || err);
+    }
     // If registering as creator, optionally create the profile immediately
     if ((role || 'supporter') === 'creator') {
       const creatorPayload = {
@@ -129,8 +162,10 @@ app.post('/api/auth/register', async (req, res, next) => {
         try { await createCreator(creatorPayload); } catch (err) { if (err?.code !== '23505') console.error('createCreator failed', err); }
       }
     }
-    const token = signToken({ sub: user.id, email: user.email });
-    res.status(201).json({ user, token });
+  const token = signToken({ sub: user.id, email: user.email });
+  const payload = { user, token };
+  if (devCode) payload.dev_code = devCode;
+  res.status(201).json(payload);
   } catch (e) { 
     if (e.code === '23505') return res.status(409).json({ error: 'Email already in use.' });
     next(e); 
@@ -170,7 +205,11 @@ app.post('/api/auth/request-verify', async (req, res, next) => {
     const code = String(Math.floor(100000 + Math.random()*900000));
   await pool.query('INSERT INTO email_verification_codes(user_id, email, code) VALUES($1,$2,$3)', [user.id, email.toLowerCase(), code]);
   await sendVerificationEmail(email, code);
-    res.json({ ok: true });
+    const payload = { ok: true };
+    if ((process.env.NODE_ENV || 'development') !== 'production') {
+      payload.dev_code = code; // helps beginners test locally
+    }
+    res.json(payload);
   } catch (e) { next(e); }
 });
 
@@ -189,6 +228,26 @@ app.post('/api/auth/verify', async (req, res, next) => {
     await pool.query('UPDATE email_verification_codes SET used_at = now() WHERE id = $1', [vc.rows[0].id]);
     await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [user.id]);
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// DEV helper: fetch latest verification code for an email (non-production only)
+app.get('/api/auth/dev-latest-code', async (req, res, next) => {
+  try {
+    if ((process.env.NODE_ENV || 'development') === 'production') {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const email = String(req.query.email || '').toLowerCase();
+    if (!email) return res.status(400).json({ error: 'email is required' });
+    const ur = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const user = ur.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const vc = await pool.query(
+      'SELECT code FROM email_verification_codes WHERE user_id=$1 AND email=$2 AND used_at IS NULL AND expires_at > now() ORDER BY created_at DESC LIMIT 1',
+      [user.id, email]
+    );
+    if (!vc.rows[0]) return res.status(404).json({ error: 'No active code' });
+    res.json({ code: vc.rows[0].code });
   } catch (e) { next(e); }
 });
 
@@ -289,7 +348,7 @@ app.get('/openapi.json', (req, res) => {
 app.use((err, req, res, _next) => {
   // Log unexpected errors to the console
   // (still quiet for successful requests)
-  if (err) console.error(err);
+  if (err && err.name !== 'ZodError') console.error(err);
   if (err.name === 'ZodError') {
     return res.status(400).json({ error: 'Invalid request', details: err.errors });
   }

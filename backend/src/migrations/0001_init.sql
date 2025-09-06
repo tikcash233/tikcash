@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS creators (
   total_earnings NUMERIC(14,2) NOT NULL DEFAULT 0,
   available_balance NUMERIC(14,2) NOT NULL DEFAULT 0,
   phone_number TEXT,
-  preferred_payment_method TEXT NOT NULL DEFAULT 'momo' CHECK (preferred_payment_method IN ('momo','bank_transfer')),
+  preferred_payment_method TEXT NOT NULL DEFAULT 'momo' CHECK (preferred_payment_method IN ('momo')),
   is_verified BOOLEAN NOT NULL DEFAULT FALSE,
   category TEXT NOT NULL DEFAULT 'other' CHECK (category IN ('comedy','dance','music','education','lifestyle','fashion','food','sports','other')),
   created_by TEXT,

@@ -21,6 +21,7 @@ export default function Auth() {
   const [phone, setPhone] = useState('');
   const [payment, setPayment] = useState('momo');
   const [category, setCategory] = useState('other');
+  const [errors, setErrors] = useState({});
   const { success, error } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
@@ -36,8 +37,33 @@ export default function Auth() {
     if (loading) return;
     setLoading(true);
     try {
+      // client-side validation
+      const nextErrors = {};
       if (mode === 'register') {
-        const u = await User.register({ email, password, name, role });
+        if (role === 'supporter') {
+          if (!name.trim()) nextErrors.name = 'Please enter your name.';
+        } else if (role === 'creator') {
+          if (!tiktokUsername.trim()) nextErrors.tiktokUsername = 'TikTok username is required.';
+          if (!displayName.trim()) nextErrors.displayName = 'Display name is required.';
+          const ph = String(phone || '');
+          if (!/^\+233\d{9}$/.test(ph)) nextErrors.phone = 'Enter a valid Ghana number as +233 then 9 digits (e.g., +233241234567).';
+        }
+      }
+      if (Object.keys(nextErrors).length) {
+        setErrors(nextErrors);
+        return;
+      }
+      setErrors({});
+      if (mode === 'register') {
+        const u = await User.register({ email, password, name, role, 
+          ...(role === 'creator' ? {
+            tiktok_username: tiktokUsername,
+            display_name: displayName,
+            phone_number: phone,
+            preferred_payment_method: payment,
+            category,
+          } : {})
+        });
         // Request code right away; show verify UI
         try { await User.requestVerify(email); } catch {}
         setNeedsVerify(true);
@@ -90,29 +116,42 @@ export default function Auth() {
                 <button type="button" onClick={()=>setRole('creator')} className={`px-3 py-1.5 rounded-lg border ${role==='creator'?'bg-blue-600 text-white border-blue-600':'bg-white text-gray-700 border-gray-300'}`}>Creator</button>
               </div>
             </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Name</label>
-              <Input value={name} onChange={(e)=>setName(e.target.value)} placeholder="Your name" />
-            </div>
+            {role === 'supporter' && (
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Name</label>
+                <Input value={name} onChange={(e)=>{ setName(e.target.value); if (errors.name) setErrors(prev=>({ ...prev, name: undefined })); }} placeholder="Your name" />
+                {errors.name && (<p className="text-sm text-red-600 mt-1">{errors.name}</p>)}
+              </div>
+            )}
             {role === 'creator' && (
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">TikTok Username</label>
-                  <Input value={tiktokUsername} onChange={(e)=>setTiktokUsername(e.target.value)} placeholder="e.g. kwesi_comedy" />
+                  <Input value={tiktokUsername} onChange={(e)=>{ setTiktokUsername(e.target.value); if (errors.tiktokUsername) setErrors(prev=>({ ...prev, tiktokUsername: undefined })); }} placeholder="e.g. kwesi_comedy" />
+                  {errors.tiktokUsername && (<p className="text-sm text-red-600 mt-1">{errors.tiktokUsername}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Display Name</label>
-                  <Input value={displayName} onChange={(e)=>setDisplayName(e.target.value)} placeholder="Your public name" />
+                  <Input value={displayName} onChange={(e)=>{ setDisplayName(e.target.value); if (errors.displayName) setErrors(prev=>({ ...prev, displayName: undefined })); }} placeholder="Your public name" />
+                  {errors.displayName && (<p className="text-sm text-red-600 mt-1">{errors.displayName}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Phone Number</label>
-                  <Input value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="Used for withdrawals" />
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-600 select-none">+233</span>
+                    <Input className="rounded-l-none" value={phone.startsWith('+233') ? phone.slice(4) : phone} onChange={(e)=>{
+                      const digits = e.target.value.replace(/\D/g, '');
+                      setPhone('+233' + digits);
+                      if (errors.phone) setErrors(prev=>({ ...prev, phone: undefined }));
+                    }} placeholder="Start after +233 (e.g., 241234567)" />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Ghana number format only. Start after +233, don’t type 0 first.</p>
+                  {errors.phone && (<p className="text-sm text-red-600 mt-1">{errors.phone}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Preferred Payment</label>
                   <select className="block w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500" value={payment} onChange={(e)=>setPayment(e.target.value)}>
                     <option value="momo">Mobile Money</option>
-                    <option value="bank_transfer">Bank Transfer</option>
                   </select>
                 </div>
                 <div>
