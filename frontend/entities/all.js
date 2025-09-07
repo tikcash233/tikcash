@@ -107,8 +107,9 @@ export const User = {
       return { id: 'demo', email: "user@example.com", name: "Demo User", email_verified: false };
     }
   },
-  async register({ email, password, name, role = 'supporter' }) {
-  const r = await fetchJson('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name, role, recovery_pin: arguments[0].recovery_pin }) });
+  async register(payload) {
+    // Send full payload so creator fields reach the backend for auto-creation
+    const r = await fetchJson('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) });
     try { localStorage.setItem('tikcash_token', r.token); } catch {}
     return r.user;
   },

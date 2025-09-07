@@ -108,7 +108,7 @@ export default function Auth() {
       <div className="w-full max-w-md bg-white rounded-xl shadow p-6 space-y-4">
         <h1 className="text-xl font-semibold">{needsVerify ? 'Verify your email' : (mode === 'register' ? 'Create an account' : 'Welcome back')}</h1>
         {!needsVerify ? (
-        <form onSubmit={onSubmit} className="space-y-3">
+  <form onSubmit={onSubmit} className="space-y-3">
           {mode === 'register' && (
             <>
             <div>
@@ -184,6 +184,13 @@ export default function Auth() {
               </button>
             </div>
           </div>
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm text-gray-700 mb-1">Recovery PIN (4 digits)</label>
+              <Input value={recoveryPin} onChange={(e)=>{ setRecoveryPin(e.target.value.replace(/\D/g,'').slice(0,4)); if (errors.recoveryPin) setErrors(prev=>({ ...prev, recoveryPin: undefined })); }} placeholder="••••" inputMode="numeric" />
+              {errors.recoveryPin && (<p className="text-sm text-red-600 mt-1">{errors.recoveryPin}</p>)}
+            </div>
+          )}
           <Button type="submit" disabled={loading} className="w-full">{loading ? 'Please wait...' : (mode === 'register' ? 'Sign up' : 'Log in')}</Button>
         </form>
   ) : (
@@ -201,14 +208,6 @@ export default function Auth() {
             <Button type="button" variant="secondary" disabled={loading} onClick={async ()=>{ try { await User.requestVerify(email); success('Code resent.'); } catch { error('Failed to resend.'); } }}>Resend</Button>
           </div>
         </form>
-        )}
-        {/* Recovery PIN field (register) */}
-        {!needsVerify && mode === 'register' && (
-          <div>
-            <label className="block text-sm text-gray-700 mb-1">Recovery PIN (4 digits)</label>
-            <Input value={recoveryPin} onChange={(e)=>{ setRecoveryPin(e.target.value.replace(/\D/g,'').slice(0,4)); if (errors.recoveryPin) setErrors(prev=>({ ...prev, recoveryPin: undefined })); }} placeholder="••••" inputMode="numeric" />
-            {errors.recoveryPin && (<p className="text-sm text-red-600 mt-1">{errors.recoveryPin}</p>)}
-          </div>
         )}
         <div className="text-sm text-gray-600">
           {mode === 'register' ? (
