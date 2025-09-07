@@ -38,7 +38,34 @@ export default function CreatorDashboard() {
   const [tipSoundOn, setTipSoundOn] = useState(true);
   // bell removed; we just keep a toast + sound toggle
   const processedTipIdsRef = useRef(new Set()); // avoid double-applying same tip across bus+broadcast
-  const lastNotifiedTipIdRef = useRef(null); // ensure we show toast at least once per newest tip
+  const lastNotifiedTipIdRef = useRef(null); // last tip id we notified for this creator (persisted)
+  const notifiedTipIdsRef = useRef(new Set()); // in-session set of tip ids we already showed as toast
+
+  // Helpers for persisting last-notified per creator
+  const getNotifyKey = useCallback((creatorId) => `tikcash:last_notified_tip:${creatorId}`, []);
+  const loadLastNotified = useCallback((creatorId) => {
+    if (!creatorId) return null;
+    try { return localStorage.getItem(getNotifyKey(creatorId)) || null; } catch { return null; }
+  }, [getNotifyKey]);
+  const saveLastNotified = useCallback((creatorId, tipId) => {
+    if (!creatorId) return;
+    try { localStorage.setItem(getNotifyKey(creatorId), tipId || ''); } catch {}
+  }, [getNotifyKey]);
+
+  const shouldNotify = useCallback((tip, c = creator) => {
+    if (!tip || !tip.id || !c?.id) return false;
+    if (String(tip.creator_id) !== String(c.id)) return false;
+    if (notifiedTipIdsRef.current.has(tip.id)) return false;
+    if (lastNotifiedTipIdRef.current && lastNotifiedTipIdRef.current === tip.id) return false;
+    return true;
+  }, [creator]);
+
+  const markNotified = useCallback((tip, c = creator) => {
+    if (!tip?.id || !c?.id) return;
+    notifiedTipIdsRef.current.add(tip.id);
+    lastNotifiedTipIdRef.current = tip.id;
+    saveLastNotified(c.id, tip.id);
+  }, [creator, saveLastNotified]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -84,7 +111,11 @@ export default function CreatorDashboard() {
   // Drop the current toast (do not re-queue) and ensure no duplicate of the new tip sits in queue
   setTipQueue((q) => q.filter((t) => t.id !== tip.id));
   setLiveTip(() => tip);
-  if (tip.id) lastNotifiedTipIdRef.current = tip.id;
+  if (tip.id && creator?.id) {
+    lastNotifiedTipIdRef.current = tip.id;
+    saveLastNotified(creator.id, tip.id);
+    notifiedTipIdsRef.current.add(tip.id);
+  }
   };
 
   // Subscribe to in-app bus
@@ -93,7 +124,10 @@ export default function CreatorDashboard() {
       if (!creator || tip.creator_id !== creator.id) return;
       addIncomingTip(tip);
       applyTipToCreator(tip);
-      showTipNow(tip);
+      if (shouldNotify(tip)) {
+        showTipNow(tip);
+        markNotified(tip);
+      }
     });
     return off;
   }, [creator]);
@@ -106,7 +140,10 @@ export default function CreatorDashboard() {
       if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
     addIncomingTip(payload);
     applyTipToCreator(payload);
-    showTipNow(payload);
+    if (shouldNotify(payload)) {
+      showTipNow(payload);
+      markNotified(payload);
+    }
       }
     };
     try {
@@ -122,7 +159,10 @@ export default function CreatorDashboard() {
         if (tip && creator && tip.creator_id === creator.id) {
       addIncomingTip(tip);
       applyTipToCreator(tip);
-      showTipNow(tip);
+      if (shouldNotify(tip)) {
+        showTipNow(tip);
+        markNotified(tip);
+      }
         }
       } catch {}
     };
@@ -149,13 +189,31 @@ export default function CreatorDashboard() {
         const newestTip = Array.isArray(latest)
           ? latest.find((t) => t && t.transaction_type === 'tip')
           : null;
-        if (newestTip && newestTip.id && lastNotifiedTipIdRef.current !== newestTip.id) {
+        if (newestTip && shouldNotify(newestTip)) {
           showTipNow(newestTip);
+          markNotified(newestTip);
         }
       } catch {}
     }, 3000);
     return () => clearInterval(id);
   }, [creator, user]);
+
+  // Seed last-notified from storage on initial load, or to newest existing tip to avoid retro-toasts
+  useEffect(() => {
+    if (!creator) return;
+    const stored = loadLastNotified(creator.id);
+    if (stored) {
+      lastNotifiedTipIdRef.current = stored;
+      return;
+    }
+    if (Array.isArray(transactions) && transactions.length > 0) {
+      const newest = transactions.find((t) => t && t.transaction_type === 'tip');
+      if (newest?.id) {
+        lastNotifiedTipIdRef.current = newest.id;
+        saveLastNotified(creator.id, newest.id);
+      }
+    }
+  }, [creator, transactions, loadLastNotified, saveLastNotified]);
 
   // Dequeue toasts one at a time
   useEffect(() => {
