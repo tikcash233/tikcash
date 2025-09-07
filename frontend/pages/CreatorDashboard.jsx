@@ -38,6 +38,7 @@ export default function CreatorDashboard() {
   const [tipSoundOn, setTipSoundOn] = useState(true);
   // bell removed; we just keep a toast + sound toggle
   const processedTipIdsRef = useRef(new Set()); // avoid double-applying same tip across bus+broadcast
+  const lastNotifiedTipIdRef = useRef(null); // ensure we show toast at least once per newest tip
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -83,6 +84,7 @@ export default function CreatorDashboard() {
   // Drop the current toast (do not re-queue) and ensure no duplicate of the new tip sits in queue
   setTipQueue((q) => q.filter((t) => t.id !== tip.id));
   setLiveTip(() => tip);
+  if (tip.id) lastNotifiedTipIdRef.current = tip.id;
   };
 
   // Subscribe to in-app bus
@@ -143,6 +145,13 @@ export default function CreatorDashboard() {
         // Refresh transactions (top 50)
         const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
         setTransactions(latest);
+        // Fallback: if a new tip appears via polling, show a toast for the newest one
+        const newestTip = Array.isArray(latest)
+          ? latest.find((t) => t && t.transaction_type === 'tip')
+          : null;
+        if (newestTip && newestTip.id && lastNotifiedTipIdRef.current !== newestTip.id) {
+          showTipNow(newestTip);
+        }
       } catch {}
     }, 3000);
     return () => clearInterval(id);

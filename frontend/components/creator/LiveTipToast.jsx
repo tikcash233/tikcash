@@ -14,6 +14,10 @@ export default function LiveTipToast({ tip, onClose, soundEnabled = true, durati
     let ctx;
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // Attempt to resume in case of suspended state due to autoplay policy
+      if (ctx.state === 'suspended' && ctx.resume) {
+        try { ctx.resume(); } catch {}
+      }
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = "sine";
@@ -37,7 +41,7 @@ export default function LiveTipToast({ tip, onClose, soundEnabled = true, durati
   const message = tip.message || tip.note;
 
   return (
-    <div className="fixed z-50 top-4 right-4 left-4 sm:left-auto sm:right-6 sm:top-6">
+    <div className="fixed z-[1000] top-4 right-4 left-4 sm:left-auto sm:right-6 sm:top-6">
       <style>{`
         @keyframes tc-toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
