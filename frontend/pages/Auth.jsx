@@ -11,8 +11,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [needsVerify, setNeedsVerify] = useState(false);
-  const [code, setCode] = useState('');
+  // email verification removed
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('supporter'); // supporter | creator
   // creator specific
@@ -82,32 +81,12 @@ export default function Auth() {
     }
   };
 
-  const onVerify = async (e) => {
-    e.preventDefault();
-    if (loading) return;
-    setLoading(true);
-    try {
-      await User.verify({ email, code });
-      success('Email verified.');
-      setNeedsVerify(false);
-      if (role === 'creator') {
-        // Redirect to creator page to create the profile (server enforces verified status)
-        navigate('/creator');
-      } else {
-        navigate('/');
-      }
-    } catch (e) {
-      error('Invalid or expired code.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // email verification removed
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-white rounded-xl shadow p-6 space-y-4">
-        <h1 className="text-xl font-semibold">{needsVerify ? 'Verify your email' : (mode === 'register' ? 'Create an account' : 'Welcome back')}</h1>
-        {!needsVerify ? (
+  <h1 className="text-xl font-semibold">{mode === 'register' ? 'Create an account' : 'Welcome back'}</h1>
   <form onSubmit={onSubmit} className="space-y-3">
           {mode === 'register' && (
             <>
@@ -166,7 +145,7 @@ export default function Auth() {
                     <option value="other">Other</option>
                   </select>
                 </div>
-                <p className="text-xs text-gray-500">We’ll ask you to verify email, then finish profile creation on your dashboard.</p>
+                {/* Email verification text removed */}
               </div>
             )}
             </>
@@ -192,23 +171,7 @@ export default function Auth() {
             </div>
           )}
           <Button type="submit" disabled={loading} className="w-full">{loading ? 'Please wait...' : (mode === 'register' ? 'Sign up' : 'Log in')}</Button>
-        </form>
-  ) : (
-        <form onSubmit={onVerify} className="space-y-3">
-          <div>
-            <label className="block text-sm text-gray-700 mb-1">Email</label>
-            <Input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="you@example.com" required />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-700 mb-1">Verification code</label>
-            <Input value={code} onChange={(e)=>setCode(e.target.value)} placeholder="6-digit code" />
-          </div>
-          <div className="flex gap-2">
-            <Button type="submit" disabled={loading} className="flex-1">{loading ? 'Verifying...' : 'Verify'}</Button>
-            <Button type="button" variant="secondary" disabled={loading} onClick={async ()=>{ try { await User.requestVerify(email); success('Code resent.'); } catch { error('Failed to resend.'); } }}>Resend</Button>
-          </div>
-        </form>
-        )}
+  </form>
         <div className="text-sm text-gray-600">
           {mode === 'register' ? (
             <button className="underline" onClick={()=>setMode('login')}>Have an account? Log in</button>
