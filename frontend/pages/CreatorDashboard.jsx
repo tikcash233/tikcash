@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,13 +75,21 @@ export default function CreatorDashboard() {
     });
   };
 
+  // Immediately display newest tip by preempting current toast; push current back into queue
+  const showTipNow = (tip) => {
+    if (!tip) return;
+  // Drop the current toast (do not re-queue) and ensure no duplicate of the new tip sits in queue
+  setTipQueue((q) => q.filter((t) => t.id !== tip.id));
+  setLiveTip(() => tip);
+  };
+
   // Subscribe to in-app bus
   useEffect(() => {
   const off = RealtimeBus.on("transaction:tip", (tip) => {
       if (!creator || tip.creator_id !== creator.id) return;
-      setTipQueue((q) => [...q, tip]);
       addIncomingTip(tip);
       applyTipToCreator(tip);
+      showTipNow(tip);
     });
     return off;
   }, [creator]);
@@ -89,12 +97,12 @@ export default function CreatorDashboard() {
   // Subscribe to BroadcastChannel for cross-tab tips and always add a storage fallback
   useEffect(() => {
     let bc;
-    const onMsg = (e) => {
+  const onMsg = (e) => {
       const { type, payload } = e.data || {};
       if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
-        setTipQueue((q) => [...q, payload]);
-        addIncomingTip(payload);
-        applyTipToCreator(payload);
+    addIncomingTip(payload);
+    applyTipToCreator(payload);
+    showTipNow(payload);
       }
     };
     try {
@@ -102,15 +110,15 @@ export default function CreatorDashboard() {
       bc.addEventListener("message", onMsg);
     } catch {}
 
-    const onStorage = (e) => {
+  const onStorage = (e) => {
       if (e.key !== 'tikcash:last_tip') return;
       try {
         const parsed = JSON.parse(e.newValue || '{}');
         const tip = parsed.tip;
         if (tip && creator && tip.creator_id === creator.id) {
-          setTipQueue((q) => [...q, tip]);
-          addIncomingTip(tip);
-          applyTipToCreator(tip);
+      addIncomingTip(tip);
+      applyTipToCreator(tip);
+      showTipNow(tip);
         }
       } catch {}
     };
@@ -146,6 +154,9 @@ export default function CreatorDashboard() {
       setTipQueue(rest);
     }
   }, [liveTip, tipQueue]);
+
+  // Stable close handler so auto-dismiss timer isn't reset on each render
+  const closeTip = useCallback(() => setLiveTip(null), []);
 
   const loadDashboardData = async () => {
     try {
@@ -362,8 +373,9 @@ export default function CreatorDashboard() {
         {/* Live Tip Toast */}
         <LiveTipToast
           tip={liveTip}
-          onClose={() => { setLiveTip(null); }}
+          onClose={closeTip}
           soundEnabled={tipSoundOn}
+          duration={5000}
         />
       </div>
     </div>
