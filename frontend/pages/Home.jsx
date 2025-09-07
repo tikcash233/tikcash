@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,16 @@ import {
 } from "lucide-react";
 
 export default function Home() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      try { setLoggedIn(!!localStorage.getItem('tikcash_token')); } catch { setLoggedIn(false); }
+    };
+    check();
+    const onStorage = (e) => { if (e.key === 'tikcash_token') check(); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const features = [
     {
       icon: Heart,
@@ -62,7 +72,7 @@ export default function Home() {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/auth?mode=register">
+              <Link to={loggedIn ? "/creator" : "/auth?mode=register"}>
                 <Button size="lg" className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg px-8 py-3 text-lg">
                   Start Earning
                   <ArrowRight className="ml-2 w-5 h-5" />
@@ -196,7 +206,7 @@ export default function Home() {
           <p className="text-xl text-white/90 mb-8">
             Join thousands of creators who are already monetizing their TikTok Live content
           </p>
-          <Link to="/auth?mode=register">
+          <Link to={loggedIn ? "/creator" : "/auth?mode=register"}>
             <Button size="lg" className="bg-gradient-to-r from-amber-400 to-yellow-500 text-gray-900 hover:from-amber-500 hover:to-yellow-600 shadow-lg ring-1 ring-amber-300 px-8 py-3 text-lg font-semibold">
               Get Started Now
               <ArrowRight className="ml-2 w-5 h-5" />
