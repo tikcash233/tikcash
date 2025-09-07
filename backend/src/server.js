@@ -12,6 +12,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
 import { listTransactionsForCreator, createTipAndApply, createTransaction } from './models/transactions.js';
+import http from 'http';
 
 dotenv.config();
 
@@ -403,7 +404,26 @@ app.use((err, req, res, _next) => {
   res.status(status).json({ error: err.message || 'Server error' });
 });
 
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`✅ API server listening on http://localhost:${port}`);
-});
+const basePort = Number(process.env.PORT || 5000);
+function startServer(port, attemptsLeft = 5) {
+  const server = http.createServer(app);
+  const onError = (err) => {
+    if (err && err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+      const nextPort = port + 1;
+      console.warn(`⚠️  Port ${port} in use, trying ${nextPort}...`);
+      // Give a tiny delay before retry
+      setTimeout(() => startServer(nextPort, attemptsLeft - 1), 150);
+    } else {
+      console.error('Failed to start server:', err?.message || err);
+      // Keep process alive under --watch; otherwise exit
+      if (process.env.NODE_ENV === 'production') process.exit(1);
+    }
+  };
+  server.once('error', onError);
+  server.listen(port, () => {
+    server.off('error', onError);
+    console.log(`✅ API server listening on http://localhost:${port}`);
+  });
+}
+
+startServer(basePort);

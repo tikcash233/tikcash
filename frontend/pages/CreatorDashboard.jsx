@@ -122,7 +122,7 @@ export default function CreatorDashboard() {
     };
   }, [creator]);
 
-  // Polling fallback: refresh creator + recent transactions every 5s
+  // Polling fallback: refresh creator + recent transactions every 3s
   useEffect(() => {
     if (!creator || !user) return;
     const id = setInterval(async () => {
@@ -134,7 +134,7 @@ export default function CreatorDashboard() {
         const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
         setTransactions(latest);
       } catch {}
-    }, 5000);
+    }, 3000);
     return () => clearInterval(id);
   }, [creator, user]);
 
