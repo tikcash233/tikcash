@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import ShareLinkBar from "../components/creator/ShareLinkBar";
 import RecentTransactions from "../components/creator/RecentTransactions";
 import WithdrawalHistory from "../components/creator/WithdrawalHistory";
 import WithdrawalModal from "../components/creator/WithdrawalModal";
-import CreatorProfile from "../components/creator/CreatorProfile";
+// Removed inline CreatorProfile fallback; use dedicated signup flow instead
 import PerformanceChart from "../components/creator/PerformanceChart";
 import LiveTipToast from "../components/creator/LiveTipToast";
 import { useToast } from "@/components/ui/toast.jsx";
@@ -37,6 +38,7 @@ export default function CreatorDashboard() {
   const [tipSoundOn, setTipSoundOn] = useState(true);
   // bell removed; we just keep a toast + sound toggle
   const processedTipIdsRef = useRef(new Set()); // avoid double-applying same tip across bus+broadcast
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadDashboardData();
@@ -161,9 +163,14 @@ export default function CreatorDashboard() {
   const loadDashboardData = async () => {
     try {
       const currentUser = await User.me();
+      if (!currentUser) {
+        // Not authenticated: send to Home and prevent back to this page
+        navigate('/', { replace: true });
+        return;
+      }
       setUser(currentUser);
-      
-      // Try to find existing creator profile
+
+      // Try to find existing creator profile for this user
       const creators = await Creator.filter({ created_by: currentUser.email });
       if (creators.length > 0) {
         const creatorProfile = creators[0];
@@ -176,9 +183,16 @@ export default function CreatorDashboard() {
           50
         );
         setTransactions(creatorTransactions);
+      } else {
+        // Logged in but no profile: redirect to creator signup page
+        navigate('/auth?mode=register&role=creator', { replace: true });
+        return;
       }
     } catch (error) {
       console.error("Error loading dashboard data:", error);
+      // On any unexpected error, keep users safe on Home
+      navigate('/', { replace: true });
+      return;
     } finally {
       setIsLoading(false);
     }
@@ -228,13 +242,8 @@ export default function CreatorDashboard() {
   }
 
   if (!creator) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4">
-          <CreatorProfile onCreateProfile={handleCreateProfile} />
-        </div>
-      </div>
-    );
+    // We redirect when unauthenticated or missing profile; render nothing to avoid flicker
+    return null;
   }
 
   // Simple local icon component that renders the GH₵ currency sign

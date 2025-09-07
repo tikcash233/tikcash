@@ -30,6 +30,8 @@ export default function Auth() {
     const params = new URLSearchParams(location.search);
     const m = params.get('mode');
     if (m === 'register' || m === 'login') setMode(m);
+  const r = params.get('role');
+  if (r === 'creator' || r === 'supporter') setRole(r);
   }, [location.search]);
 
   const onSubmit = async (e) => {

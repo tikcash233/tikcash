@@ -108,9 +108,10 @@ export const User = {
     try {
       const r = await fetchJson('/api/auth/me');
       return r.user;
-    } catch {
-      // fallback demo if not logged in yet
-      return { id: 'demo', email: "user@example.com", name: "Demo User", email_verified: false };
+    } catch (e) {
+      const msg = (e && e.message) || '';
+      if (msg.includes('HTTP 401') || msg.includes('HTTP 403')) return null;
+      return null; // treat other failures as unauthenticated for guard simplicity
     }
   },
   async register(payload) {
