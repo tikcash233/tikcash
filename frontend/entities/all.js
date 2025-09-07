@@ -19,6 +19,10 @@ const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && impor
   ? import.meta.env.VITE_API_URL
   : ((typeof window !== 'undefined' && window.__API_BASE__) || 'http://localhost:5000');
 
+// Persistent BroadcastChannel for cross-tab events
+let bc;
+try { bc = new BroadcastChannel('tikcash-events'); } catch { bc = null; }
+
 function getAuthHeaders() {
   try {
     const t = localStorage.getItem('tikcash_token');
@@ -88,9 +92,11 @@ export const Transaction = {
     if (created.transaction_type === "tip") {
       Bus.emit("transaction:tip", created);
       try {
-        const bc = new BroadcastChannel("tikcash-events");
-        bc.postMessage({ type: "transaction:tip", payload: created });
-        bc.close();
+        if (bc) bc.postMessage({ type: "transaction:tip", payload: created });
+      } catch {}
+      // Fallback: trigger storage event so other tabs can pick it up
+      try {
+        localStorage.setItem('tikcash:last_tip', JSON.stringify({ ts: Date.now(), tip: created }));
       } catch {}
     }
     return created;

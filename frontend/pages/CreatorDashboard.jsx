@@ -86,25 +86,57 @@ export default function CreatorDashboard() {
     return off;
   }, [creator]);
 
-  // Subscribe to BroadcastChannel for cross-tab tips
+  // Subscribe to BroadcastChannel for cross-tab tips and always add a storage fallback
   useEffect(() => {
     let bc;
+    const onMsg = (e) => {
+      const { type, payload } = e.data || {};
+      if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
+        setTipQueue((q) => [...q, payload]);
+        addIncomingTip(payload);
+        applyTipToCreator(payload);
+      }
+    };
     try {
       bc = new BroadcastChannel("tikcash-events");
-  const onMsg = (e) => {
-        const { type, payload } = e.data || {};
-        if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
-          setTipQueue((q) => [...q, payload]);
-          addIncomingTip(payload);
-          applyTipToCreator(payload);
-        }
-      };
       bc.addEventListener("message", onMsg);
-      return () => bc && bc.removeEventListener("message", onMsg);
-    } catch {
-      return () => {};
-    }
+    } catch {}
+
+    const onStorage = (e) => {
+      if (e.key !== 'tikcash:last_tip') return;
+      try {
+        const parsed = JSON.parse(e.newValue || '{}');
+        const tip = parsed.tip;
+        if (tip && creator && tip.creator_id === creator.id) {
+          setTipQueue((q) => [...q, tip]);
+          addIncomingTip(tip);
+          applyTipToCreator(tip);
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      if (bc) bc.removeEventListener('message', onMsg);
+      window.removeEventListener('storage', onStorage);
+    };
   }, [creator]);
+
+  // Polling fallback: refresh creator + recent transactions every 5s
+  useEffect(() => {
+    if (!creator || !user) return;
+    const id = setInterval(async () => {
+      try {
+        // Refresh creator balances
+        const list = await Creator.filter({ created_by: user.email });
+        if (list && list[0]) setCreator(list[0]);
+        // Refresh transactions (top 50)
+        const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
+        setTransactions(latest);
+      } catch {}
+    }, 5000);
+    return () => clearInterval(id);
+  }, [creator, user]);
 
   // Dequeue toasts one at a time
   useEffect(() => {
