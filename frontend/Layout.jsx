@@ -59,6 +59,11 @@ export default function Layout({ children, currentPageName }) {
 			return () => window.removeEventListener('storage', onStorage);
 		}, []);
 
+		// Re-check auth on route changes (same-tab update after login/register)
+		useEffect(() => {
+			try { setLoggedIn(!!localStorage.getItem('tikcash_token')); } catch { setLoggedIn(false); }
+		}, [location.pathname]);
+
 		const onLogout = () => { setConfirmLogout(true); };
 		const doLogout = () => {
 			ApiUser.logout();

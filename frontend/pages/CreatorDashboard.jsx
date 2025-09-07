@@ -255,7 +255,20 @@ export default function CreatorDashboard() {
     },
     {
       title: "Supporters",
-      value: new Set(transactions.filter(t => t.transaction_type === 'tip').map(t => t.supporter_name)).size,
+      value: (() => {
+        const tips = transactions.filter(t => t.transaction_type === 'tip');
+        const namedSet = new Set();
+        let anonymousCount = 0;
+        for (const t of tips) {
+          const name = (t.supporter_name || '').trim();
+          if (!name || name.toLowerCase() === 'anonymous') {
+            anonymousCount += 1; // each anonymous tip counts as a separate supporter
+          } else {
+            namedSet.add(name);
+          }
+        }
+        return namedSet.size + anonymousCount;
+      })(),
       icon: Users,
       color: "text-orange-600",
       bgColor: "bg-orange-50"
