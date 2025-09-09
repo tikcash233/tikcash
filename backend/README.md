@@ -107,3 +107,43 @@ We now send `callback_url` to Paystack so after payment they redirect the user d
 2. Set webhook URL in Paystack Test dashboard to: `https://YOUR_TUNNEL/api/paystack/webhook`.
 3. Make payment. Webhook will mark transaction completed; the result page polling stops once status=completed.
 
+### Real-time updates (SSE)
+Endpoint: `GET /api/stream/transactions`
+
+This is a Server-Sent Events stream. The backend pushes lines like:
+```
+event: tx
+data: {"type":"transaction.update","reference":"TIP_xxx","status":"completed","creator_id":"...","amount":5.00,"at":"2025-09-09T12:00:00Z"}
+```
+How to consume in the browser:
+```js
+const ev = new EventSource('/api/stream/transactions');
+ev.addEventListener('tx', (e) => {
+   const data = JSON.parse(e.data);
+   // If you're on a payment result page with matching reference, update UI instantly
+   if (data.reference === currentRef) {
+      setStatus(data.status);
+   }
+   // Or refresh a creator's earnings list
+});
+```
+SSE vs Polling:
+- Polling = client asks repeatedly (wastes requests when nothing changed).
+- SSE = server pushes changes immediately over one long-lived HTTP connection.
+
+Production note: behind Nginx/Cloudflare ensure response buffering is disabled for the `/api/stream/transactions` path so events flush promptly.
+
+### Environment Checklist for Production
+- Set `NODE_ENV=production`.
+- Strong `JWT_SECRET`.
+- Restrict `CORS_ORIGINS` to real domains.
+- Use HTTPS (behind a reverse proxy like Nginx or a platform that terminates TLS).
+- Enable and test Paystack live keys (`PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`).
+- Configure Paystack live webhook → `/api/paystack/webhook` (HTTPS).
+- Monitor logs for failed webhook signature validations.
+- Add application layer rate limits per auth-sensitive route if needed (current global limiter is basic).
+- Backup & retention strategy for PostgreSQL (Neon provides branching & PITR options on paid tiers).
+
+### Simple definition of SSE
+Server-Sent Events (SSE) = a single always-open HTTP connection where the server can keep sending small text messages to the browser as things happen. Browser listens; no need to keep asking.
+

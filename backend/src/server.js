@@ -13,6 +13,7 @@ import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
 import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip } from './models/transactions.js';
 import { initializePaystackTransaction } from './payments/paystack.js';
+import { txEvents, emitTransactionEvent } from './events.js';
 import crypto from 'node:crypto';
 import http from 'http';
 
@@ -389,6 +390,7 @@ app.post('/api/payments/paystack/initiate', async (req, res, next) => {
       status: 'pending',
       payment_reference: reference,
     });
+  emitTransactionEvent({ payment_reference: reference, status: 'pending', creator_id, amount: amt });
     const initData = await initializePaystackTransaction({
       amountGHS: amt,
       email: supporter_email || 'anon@example.com',
@@ -423,6 +425,7 @@ app.get('/api/payments/paystack/verify/:reference', async (req, res, next) => {
       // finalize balances if not yet applied
       await completePendingTip(ref, Number(data.amount) / 100);
       const updated = await getTransactionByReference(ref);
+  emitTransactionEvent(updated);
       return res.json({ reference: ref, status: updated.status, amount: Number(updated.amount) });
     }
     res.json({ reference: ref, status: tx.status });
@@ -459,6 +462,8 @@ app.post('/api/paystack/webhook', async (req, res, next) => {
               payment_reference: data.reference,
             });
           }
+          const finalTx = await getTransactionByReference(data.reference);
+          emitTransactionEvent(finalTx);
         } catch (err) {
           console.error('Failed to persist Paystack tip', err);
         }
@@ -466,6 +471,35 @@ app.post('/api/paystack/webhook', async (req, res, next) => {
     }
     res.json({ received: true });
   } catch (e) { next(e); }
+});
+
+// SSE (Server-Sent Events) stream for real-time transaction updates
+app.get('/api/stream/transactions', (req, res) => {
+  // CORS headers (already allowed globally but ensure for event stream)
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders && res.flushHeaders();
+
+  const send = (payload) => {
+    try {
+      res.write(`event: tx\n`);
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    } catch (_) { /* ignore */ }
+  };
+
+  const listener = (evt) => send(evt);
+  txEvents.on('tx', listener);
+
+  // Ping every 25s to keep connection alive (some proxies close idle >30s)
+  const pingInterval = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch (_) {}
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(pingInterval);
+    txEvents.off('tx', listener);
+  });
 });
 
 // Simple OpenAPI docs endpoint

@@ -1,4 +1,5 @@
 import { query, withTransaction } from '../db.js';
+import { emitTransactionEvent } from '../events.js';
 
 export async function listTransactionsForCreator(creatorId, { limit = 50 } = {}) {
   const res = await query(
@@ -101,6 +102,8 @@ export async function completePendingTip(reference, amount) {
       await client.query('UPDATE creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2', [amount, tx.creator_id]);
     }
     const updated = await client.query('SELECT * FROM transactions WHERE id = $1', [tx.id]);
-    return updated.rows[0];
+  const finalTx = updated.rows[0];
+  emitTransactionEvent(finalTx);
+  return finalTx;
   });
 }
