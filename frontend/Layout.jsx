@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Home, User, TrendingUp, Heart, Menu, X, ArrowUp } from "lucide-react";
+import Logo from "@/components/ui/Logo.jsx";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm.jsx";
 import { useState, useEffect } from "react";
@@ -106,25 +107,8 @@ export default function Layout({ children, currentPageName }) {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               {/* Logo */}
-              <Link
-                to={createPageUrl("Home")}
-                className="flex items-center space-x-3"
-              >
-                <div className="relative">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
-                    <TrendingUp className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full border-2 border-blue-600"></div>
-                </div>
-                <div className="hidden sm:block">
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                    TikCash
-                  </h1>
-                  <p className="text-xs text-gray-500 -mt-1">
-                    Creator Platform
-                  </p>
-                </div>
-              </Link>
+              <Logo to={createPageUrl("Home")} className="hidden sm:flex" />
+              <Logo to={createPageUrl("Home")} showText={false} className="sm:hidden" />
 
               {/* Right side (desktop): nav + auth */}
               <div className="hidden md:flex items-center space-x-3">
@@ -256,13 +240,7 @@ export default function Layout({ children, currentPageName }) {
               <div className="grid md:grid-cols-4 gap-8">
                 <div className="md:col-span-2">
                   <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold">TikCash</h3>
-                      <p className="text-gray-400 text-sm">Creator Platform</p>
-                    </div>
+                    <Logo variant="dark" tagline="Creator Platform" />
                   </div>
                   <p className="text-gray-400 mb-4">
                     Empowering TikTok creators to monetize their content and
