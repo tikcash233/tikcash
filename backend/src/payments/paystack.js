@@ -49,3 +49,19 @@ export function verifyPaystackSignature(rawBody, signatureHeader) {
     return false;
   }
 }
+
+// Verify a transaction directly (useful before you set up webhooks)
+export async function verifyPaystackTransaction(reference) {
+  if (!PAYSTACK_SECRET_KEY) throw new Error('Paystack secret key missing');
+  const url = `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`;
+  const resp = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` }
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok || !json.status) {
+    const err = new Error(json?.message || `Verify failed: ${resp.status}`);
+    err.status = 502;
+    throw err;
+  }
+  return json.data; // contains amount, status, reference, metadata, etc.
+}

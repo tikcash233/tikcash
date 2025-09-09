@@ -80,3 +80,27 @@ export async function createTipAndApply(data) {
     return tx;
   });
 }
+
+// Fetch by Paystack reference
+export async function getTransactionByReference(reference) {
+  const res = await query('SELECT * FROM transactions WHERE payment_reference = $1 LIMIT 1', [reference]);
+  return res.rows[0] || null;
+}
+
+// Complete an existing pending tip (created before redirect) and apply balance increase atomically.
+export async function completePendingTip(reference, amount) {
+  return withTransaction(async (client) => {
+    const tr = await client.query('SELECT * FROM transactions WHERE payment_reference = $1 FOR UPDATE', [reference]);
+    if (tr.rowCount === 0) return null; // not found
+    const tx = tr.rows[0];
+    if (tx.status !== 'pending') return tx; // already processed
+    // Update transaction (ensure amount is set in case it was 0)
+    await client.query('UPDATE transactions SET status = $2, amount = $3 WHERE id = $1', [tx.id, 'completed', amount]);
+    // Apply to creator balances
+    if (amount > 0) {
+      await client.query('UPDATE creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2', [amount, tx.creator_id]);
+    }
+    const updated = await client.query('SELECT * FROM transactions WHERE id = $1', [tx.id]);
+    return updated.rows[0];
+  });
+}

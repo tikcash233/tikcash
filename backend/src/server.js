@@ -11,8 +11,9 @@ import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, Regi
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
-import { listTransactionsForCreator, createTipAndApply, createTransaction } from './models/transactions.js';
+import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip } from './models/transactions.js';
 import { initializePaystackTransaction } from './payments/paystack.js';
+import crypto from 'node:crypto';
 import http from 'http';
 
 dotenv.config();
@@ -363,21 +364,61 @@ app.post('/api/transactions', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Paystack: initiate a tip payment (creates a pending transaction after webhook confirms)
+// Paystack: initiate a tip payment (create a pending transaction now, later completed by webhook)
 app.post('/api/payments/paystack/initiate', async (req, res, next) => {
   try {
     const { creator_id, amount, supporter_name, message, supporter_email } = req.body || {};
-    if (!creator_id || !amount) return res.status(400).json({ error: 'creator_id and amount are required' });
-    if (!(Number(amount) > 0)) return res.status(400).json({ error: 'Amount must be > 0' });
-    // Generate a unique reference (you may persist a placeholder transaction if you want pre-log)
-    const reference = 'TIP_' + Date.now() + '_' + Math.random().toString(36).slice(2,10);
+    if (!creator_id || typeof amount === 'undefined') return res.status(400).json({ error: 'creator_id and amount are required' });
+    const amt = Number(amount);
+    if (!(amt > 0)) return res.status(400).json({ error: 'Amount must be > 0' });
+    // Generate reference
+    const reference = 'TIP_' + crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+    // Insert pending transaction with zero amount for now (will be updated to actual amount on complete)
+    await createTransaction({
+      creator_id,
+      supporter_name: supporter_name || null,
+      amount: amt, // store intended amount already
+      message: message || null,
+      transaction_type: 'tip',
+      status: 'pending',
+      payment_reference: reference,
+    });
     const initData = await initializePaystackTransaction({
-      amountGHS: Number(amount),
+      amountGHS: amt,
       email: supporter_email || 'anon@example.com',
       reference,
       metadata: { creator_id, supporter_name, message }
     });
-    res.json({ authorization_url: initData.authorization_url, reference: initData.reference, access_code: initData.access_code });
+    res.json({ authorization_url: initData.authorization_url, reference });
+  } catch (e) { next(e); }
+});
+
+// Payment status check (manual polling without webhook tunnel)
+app.get('/api/payments/paystack/status/:reference', async (req, res, next) => {
+  try {
+    const tx = await getTransactionByReference(req.params.reference);
+    if (!tx) return res.status(404).json({ error: 'Not found' });
+    res.json({ reference: tx.payment_reference, status: tx.status, amount: Number(tx.amount) });
+  } catch (e) { next(e); }
+});
+
+// Manual verify route (use this after customer returns from Paystack if you don't have webhooks yet)
+app.get('/api/payments/paystack/verify/:reference', async (req, res, next) => {
+  try {
+  const ref = (req.params.reference || '').trim();
+    const tx = await getTransactionByReference(ref);
+    if (!tx) return res.status(404).json({ error: 'Transaction not found (reference unknown)' });
+    if (tx.status === 'completed') return res.json({ reference: ref, status: 'completed', amount: Number(tx.amount) });
+    // Call Paystack verify API
+    const { verifyPaystackTransaction } = await import('./payments/paystack.js');
+    const data = await verifyPaystackTransaction(ref);
+    if (data.status === 'success') {
+      // finalize balances if not yet applied
+      await completePendingTip(ref, Number(data.amount) / 100);
+      const updated = await getTransactionByReference(ref);
+      return res.json({ reference: ref, status: updated.status, amount: Number(updated.amount) });
+    }
+    res.json({ reference: ref, status: tx.status });
   } catch (e) { next(e); }
 });
 
