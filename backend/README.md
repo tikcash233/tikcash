@@ -55,3 +55,45 @@ Production-ready Node.js API using Express and PostgreSQL (Neon) for the TikCash
 Notes:
 - Amounts are NUMERIC(14,2) in GHS.
 - Add auth and payment provider integration for production.
+
+## Paystack Integration (Initial)
+
+Environment variables to add to `.env` (test mode first):
+
+```
+PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxxx
+PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxx
+# Comma separated; leave blank to allow all during local dev
+CORS_ORIGINS=http://localhost:3000
+```
+
+New endpoints:
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | /api/payments/paystack/initiate | Get Paystack authorization_url for a tip |
+| POST | /api/paystack/webhook | Receive Paystack events (charge.success) |
+
+Initiate request body:
+```
+{ "creator_id":"UUID", "amount": 5.00, "supporter_name":"Ama", "message":"Love your content", "supporter_email":"ama@example.com" }
+```
+Response:
+```
+{ "authorization_url":"https://checkout.paystack.com/...", "reference":"TIP_...", "access_code":"..." }
+```
+
+Webhook handling:
+- Verifies signature using `x-paystack-signature`.
+- On `charge.success`, inserts a completed `tip` transaction if the reference is new and updates balances.
+
+Frontend flow:
+1. Call initiate endpoint -> open `authorization_url` in a new window or redirect.
+2. After payment, Paystack redirects back (you can supply a `callback_url` later) OR rely on webhook to update balance then poll creator transactions.
+
+Next improvements to add:
+- Persist a pending transaction before redirect for better audit trail.
+- Add idempotency lock on webhook (currently checks by reference only).
+- Handle failed events (`charge.failed`).
+- Support automated withdrawals (Paystack Transfers) later.
+

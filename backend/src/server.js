@@ -12,6 +12,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
 import { listTransactionsForCreator, createTipAndApply, createTransaction } from './models/transactions.js';
+import { initializePaystackTransaction } from './payments/paystack.js';
 import http from 'http';
 
 dotenv.config();
@@ -20,7 +21,21 @@ const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(compression());
-app.use(express.json({ limit: '1mb' }));
+// Capture raw body for Paystack webhook signature verification while still parsing JSON normally elsewhere
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/paystack/webhook')) {
+    let data = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => { data += chunk; });
+    req.on('end', () => {
+      req.rawBody = data;
+      try { req.body = JSON.parse(data || '{}'); } catch { req.body = {}; }
+      next();
+    });
+  } else {
+    express.json({ limit: '1mb' })(req, res, next);
+  }
+});
 
 // CORS
 // Comma-separated allowlist for frontend URLs
@@ -345,6 +360,63 @@ app.post('/api/transactions', async (req, res, next) => {
   const created = await createTipAndApply(data);
   const normalized = { ...created, amount: created.amount != null ? Number(created.amount) : created.amount };
   res.status(201).json(normalized);
+  } catch (e) { next(e); }
+});
+
+// Paystack: initiate a tip payment (creates a pending transaction after webhook confirms)
+app.post('/api/payments/paystack/initiate', async (req, res, next) => {
+  try {
+    const { creator_id, amount, supporter_name, message, supporter_email } = req.body || {};
+    if (!creator_id || !amount) return res.status(400).json({ error: 'creator_id and amount are required' });
+    if (!(Number(amount) > 0)) return res.status(400).json({ error: 'Amount must be > 0' });
+    // Generate a unique reference (you may persist a placeholder transaction if you want pre-log)
+    const reference = 'TIP_' + Date.now() + '_' + Math.random().toString(36).slice(2,10);
+    const initData = await initializePaystackTransaction({
+      amountGHS: Number(amount),
+      email: supporter_email || 'anon@example.com',
+      reference,
+      metadata: { creator_id, supporter_name, message }
+    });
+    res.json({ authorization_url: initData.authorization_url, reference: initData.reference, access_code: initData.access_code });
+  } catch (e) { next(e); }
+});
+
+// Paystack webhook endpoint
+app.post('/api/paystack/webhook', async (req, res, next) => {
+  try {
+    const signature = req.headers['x-paystack-signature'];
+    // Lazy import to avoid circular top-level await
+    const { verifyPaystackSignature } = await import('./payments/paystack.js');
+    if (!verifyPaystackSignature || !verifyPaystackSignature(req.rawBody, signature)) {
+      return res.status(400).json({ error: 'Invalid signature' });
+    }
+    const event = req.body;
+    if (event?.event === 'charge.success') {
+      const data = event.data;
+      const metadata = data?.metadata || {};
+      const creator_id = metadata.creator_id;
+      if (creator_id) {
+        // Create transaction & update balances if not already inserted (idempotency by payment_reference)
+        // Check if reference exists
+        try {
+          const existing = await pool.query('SELECT id FROM transactions WHERE payment_reference = $1 LIMIT 1', [data.reference]);
+          if (existing.rowCount === 0) {
+            await createTipAndApply({
+              creator_id,
+              supporter_name: metadata.supporter_name || data.customer?.email || 'Anonymous',
+              amount: Number(data.amount) / 100, // convert pesewas to GHS
+              message: metadata.message || null,
+              transaction_type: 'tip',
+              status: 'completed',
+              payment_reference: data.reference,
+            });
+          }
+        } catch (err) {
+          console.error('Failed to persist Paystack tip', err);
+        }
+      }
+    }
+    res.json({ received: true });
   } catch (e) { next(e); }
 });
 
