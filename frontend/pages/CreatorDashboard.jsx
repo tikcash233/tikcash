@@ -174,27 +174,19 @@ export default function CreatorDashboard() {
     };
   }, [creator]);
 
-  // Polling fallback: refresh creator + recent transactions every 3s
+  // Light periodic sync (safety): refresh snapshot every 60s instead of every 3s now that SSE provides real-time pushes.
   useEffect(() => {
     if (!creator || !user) return;
-    const id = setInterval(async () => {
+    const run = async () => {
       try {
-        // Refresh creator balances
         const list = await Creator.filter({ created_by: user.email });
         if (list && list[0]) setCreator(list[0]);
-        // Refresh transactions (top 50)
         const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
         setTransactions(latest);
-        // Fallback: if a new tip appears via polling, show a toast for the newest one
-        const newestTip = Array.isArray(latest)
-          ? latest.find((t) => t && t.transaction_type === 'tip')
-          : null;
-        if (newestTip && shouldNotify(newestTip)) {
-          showTipNow(newestTip);
-          markNotified(newestTip);
-        }
       } catch {}
-    }, 3000);
+    };
+    run(); // initial one-time sync
+    const id = setInterval(run, 60000); // 60s safety sync
     return () => clearInterval(id);
   }, [creator, user]);
 
@@ -208,7 +200,7 @@ export default function CreatorDashboard() {
         try {
           const data = JSON.parse(evt.data);
           if (!data || data.creator_id !== creator.id) return;
-          // If a tip just completed, refresh creator + inject lightweight record if we already have full data via polling later
+          // Completed tip event; we incorporate fully without waiting for polling
           if (data.status === 'completed') {
             // Opportunistic creator balance bump (amount is provided)
             setCreator((prev) => prev ? { ...prev, total_earnings: (prev.total_earnings||0)+Number(data.amount||0), available_balance: (prev.available_balance||0)+Number(data.amount||0) } : prev);
@@ -247,8 +239,7 @@ export default function CreatorDashboard() {
               message: data.message,
               status: data.status,
             };
-            addIncomingTip(maybeTip);
-            applyTipToCreator(maybeTip);
+            // Only notify if this exact id hasn't been processed yet
             if (shouldNotify(maybeTip)) {
               showTipNow(maybeTip);
               markNotified(maybeTip);

@@ -38,7 +38,10 @@ export default function LiveTipToast({ tip, onClose, soundEnabled = true, durati
 
   const amount = Number(tip.amount || 0);
   const supporter = tip.supporter_name || "Anonymous";
-  const message = tip.message || tip.note;
+  let message = tip.message || tip.note;
+  if (message && message.length > 160) {
+    message = message.slice(0,157) + '…';
+  }
 
   return (
     <div className="fixed z-[1000] top-4 right-4 left-4 sm:left-auto sm:right-6 sm:top-6">
