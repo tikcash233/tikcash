@@ -7,6 +7,7 @@ import SupporterDashbaord from '@/pages/SupporterDashbaord.jsx';
 import { ToastProvider } from '@/components/ui/toast.jsx';
 import Auth from '@/pages/Auth.jsx';
 import Reset from '@/pages/Reset.jsx';
+import PaymentResult from '@/pages/PaymentResult.jsx';
 
 function WithLayout({ children, name }) {
   return <Layout currentPageName={name}>{children}</Layout>;
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/support" element={<WithLayout name="SupporterDashboard"><SupporterDashbaord /></WithLayout>} />
           <Route path="/auth" element={<WithLayout name="Auth"><Auth /></WithLayout>} />
           <Route path="/reset" element={<WithLayout name="Reset"><Reset /></WithLayout>} />
+          <Route path="/payment/result" element={<WithLayout name="PaymentResult"><PaymentResult /></WithLayout>} />
         </Routes>
       </BrowserRouter>
     </ToastProvider>

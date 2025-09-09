@@ -65,6 +65,8 @@ PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxxx
 PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxx
 # Comma separated; leave blank to allow all during local dev
 CORS_ORIGINS=http://localhost:3000
+# Base URL where frontend is served (used for callback_url)
+PUBLIC_APP_URL=http://localhost:3000
 ```
 
 New endpoints:
@@ -96,4 +98,12 @@ Next improvements to add:
 - Add idempotency lock on webhook (currently checks by reference only).
 - Handle failed events (`charge.failed`).
 - Support automated withdrawals (Paystack Transfers) later.
+
+### callback_url vs manual redirect
+We now send `callback_url` to Paystack so after payment they redirect the user directly to `/payment/result?ref=REFERENCE`. No client-side query hack needed.
+
+### Webhooks
+1. Start tunnel: `ngrok http 5000` (or any similar tool).
+2. Set webhook URL in Paystack Test dashboard to: `https://YOUR_TUNNEL/api/paystack/webhook`.
+3. Make payment. Webhook will mark transaction completed; the result page polling stops once status=completed.
 

@@ -11,7 +11,7 @@ if (!PAYSTACK_SECRET_KEY) {
 
 export function getPaystackPublicKey() { return PAYSTACK_PUBLIC_KEY; }
 
-export async function initializePaystackTransaction({ amountGHS, email, reference, metadata = {} }) {
+export async function initializePaystackTransaction({ amountGHS, email, reference, metadata = {}, callbackUrl }) {
   if (!PAYSTACK_SECRET_KEY) throw new Error('Paystack secret key missing');
   const body = {
     amount: Math.round(Number(amountGHS) * 100), // pesewas
@@ -19,6 +19,7 @@ export async function initializePaystackTransaction({ amountGHS, email, referenc
     email,
     reference,
     metadata,
+    ...(callbackUrl ? { callback_url: callbackUrl } : {})
   };
   const resp = await fetch('https://api.paystack.co/transaction/initialize', {
     method: 'POST',

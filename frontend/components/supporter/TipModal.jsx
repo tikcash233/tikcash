@@ -16,13 +16,23 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 		if (!isFinite(value) || value <= 0) return;
 		setIsSending(true);
 		try {
-			await onSendTip?.({
-				creator_id: creator?.id,
-				amount: value,
-				supporter_name: name || "Anonymous",
-				message: message,
-				transaction_type: "tip",
+			// Call backend initiate endpoint
+			const res = await fetch('/api/payments/paystack/initiate', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					creator_id: creator?.id,
+					amount: value,
+					supporter_name: name || 'Anonymous',
+					message: message || ''
+				})
 			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || 'Failed to start payment');
+			// Redirect to Paystack hosted page (server sets callback_url already)
+			window.location.href = data.authorization_url;
+		} catch (err) {
+			alert(err.message);
 		} finally {
 			setIsSending(false);
 		}

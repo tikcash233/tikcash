@@ -141,6 +141,12 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Public config so frontend knows if webhook mode is enabled (used to reduce polling)
+app.get('/api/config', (req, res) => {
+  const webhookEnabled = (process.env.ENABLE_PAYSTACK_WEBHOOK || 'true').toLowerCase() === 'true';
+  res.json({ webhookEnabled });
+});
+
 // Avoid noisy 404 for favicon requests
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 
@@ -387,7 +393,8 @@ app.post('/api/payments/paystack/initiate', async (req, res, next) => {
       amountGHS: amt,
       email: supporter_email || 'anon@example.com',
       reference,
-      metadata: { creator_id, supporter_name, message }
+  metadata: { creator_id, supporter_name, message },
+  callbackUrl: (process.env.PUBLIC_APP_URL || 'http://localhost:3000') + '/payment/result?ref=' + reference
     });
     res.json({ authorization_url: initData.authorization_url, reference });
   } catch (e) { next(e); }
