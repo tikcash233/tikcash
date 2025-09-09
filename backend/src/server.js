@@ -381,7 +381,7 @@ app.post('/api/payments/paystack/initiate', async (req, res, next) => {
     // Generate reference
     const reference = 'TIP_' + crypto.randomUUID().replace(/-/g, '').slice(0, 24);
     // Insert pending transaction with zero amount for now (will be updated to actual amount on complete)
-    await createTransaction({
+    const pendingTx = await createTransaction({
       creator_id,
       supporter_name: supporter_name || null,
       amount: amt, // store intended amount already
@@ -390,7 +390,7 @@ app.post('/api/payments/paystack/initiate', async (req, res, next) => {
       status: 'pending',
       payment_reference: reference,
     });
-  emitTransactionEvent({ payment_reference: reference, status: 'pending', creator_id, amount: amt });
+    emitTransactionEvent(pendingTx);
     const initData = await initializePaystackTransaction({
       amountGHS: amt,
       email: supporter_email || 'anon@example.com',
@@ -451,8 +451,9 @@ app.post('/api/paystack/webhook', async (req, res, next) => {
         // Check if reference exists
         try {
           const existing = await pool.query('SELECT id FROM transactions WHERE payment_reference = $1 LIMIT 1', [data.reference]);
+          let finalTx;
           if (existing.rowCount === 0) {
-            await createTipAndApply({
+            finalTx = await createTipAndApply({
               creator_id,
               supporter_name: metadata.supporter_name || data.customer?.email || 'Anonymous',
               amount: Number(data.amount) / 100, // convert pesewas to GHS
@@ -461,8 +462,9 @@ app.post('/api/paystack/webhook', async (req, res, next) => {
               status: 'completed',
               payment_reference: data.reference,
             });
+          } else {
+            finalTx = await getTransactionByReference(data.reference);
           }
-          const finalTx = await getTransactionByReference(data.reference);
           emitTransactionEvent(finalTx);
         } catch (err) {
           console.error('Failed to persist Paystack tip', err);

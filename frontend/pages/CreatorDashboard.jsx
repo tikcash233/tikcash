@@ -198,6 +198,69 @@ export default function CreatorDashboard() {
     return () => clearInterval(id);
   }, [creator, user]);
 
+  // SSE subscription: real-time transaction updates (mainly completed tips)
+  useEffect(() => {
+    if (!creator) return;
+    let es;
+    try {
+      es = new EventSource('/api/stream/transactions');
+      es.addEventListener('tx', (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          if (!data || data.creator_id !== creator.id) return;
+          // If a tip just completed, refresh creator + inject lightweight record if we already have full data via polling later
+          if (data.status === 'completed') {
+            // Opportunistic creator balance bump (amount is provided)
+            setCreator((prev) => prev ? { ...prev, total_earnings: (prev.total_earnings||0)+Number(data.amount||0), available_balance: (prev.available_balance||0)+Number(data.amount||0) } : prev);
+            // Insert or replace transaction with full data (since backend now includes supporter_name/message/id)
+            setTransactions((prev) => {
+              const exists = prev.find(t => t.payment_reference === data.reference);
+              const fullTx = {
+                id: data.id || (exists && exists.id) || 'temp_'+data.reference,
+                creator_id: data.creator_id,
+                amount: data.amount,
+                transaction_type: data.transaction_type || 'tip',
+                status: data.status,
+                payment_reference: data.reference,
+                supporter_name: data.supporter_name || exists?.supporter_name || 'Anonymous',
+                message: data.message || exists?.message || null,
+                created_date: exists?.created_date || new Date().toISOString()
+              };
+              let next;
+              if (exists) {
+                next = prev.map(t => t.payment_reference === data.reference ? { ...t, ...fullTx } : t);
+              } else {
+                next = [fullTx, ...prev];
+              }
+              // sort newest first
+              next.sort((a,b) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime());
+              return next.slice(0,50);
+            });
+            // Toast notification if eligible
+            const maybeTip = {
+              id: data.id,
+              creator_id: data.creator_id,
+              amount: data.amount,
+              transaction_type: data.transaction_type || 'tip',
+              payment_reference: data.reference,
+              supporter_name: data.supporter_name,
+              message: data.message,
+              status: data.status,
+            };
+            addIncomingTip(maybeTip);
+            applyTipToCreator(maybeTip);
+            if (shouldNotify(maybeTip)) {
+              showTipNow(maybeTip);
+              markNotified(maybeTip);
+            }
+          }
+        } catch {}
+      });
+      es.onerror = () => { try { es.close(); } catch {} };
+    } catch {}
+    return () => { if (es) try { es.close(); } catch {} };
+  }, [creator]);
+
   // Seed last-notified from storage on initial load, or to newest existing tip to avoid retro-toasts
   useEffect(() => {
     if (!creator) return;

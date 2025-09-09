@@ -11,10 +11,14 @@ export function emitTransactionEvent(tx) {
   try {
     txEvents.emit('tx', {
       type: 'transaction.update',
-      reference: tx.payment_reference,
-      status: tx.status,
-      creator_id: tx.creator_id,
-      amount: Number(tx.amount),
+      id: tx.id || null,
+      reference: tx.payment_reference || null,
+      status: tx.status || null,
+      creator_id: tx.creator_id || null,
+      amount: tx.amount != null ? Number(tx.amount) : null,
+      supporter_name: tx.supporter_name || null,
+      message: tx.message || null,
+      transaction_type: tx.transaction_type || null,
       at: new Date().toISOString()
     });
   } catch (e) {

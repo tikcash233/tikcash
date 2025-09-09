@@ -16,6 +16,26 @@ export default function PaymentResult() {
   useEffect(() => {
     if (!ref) return;
     let cancelled = false;
+    // Open SSE stream for instant status updates
+    let es;
+    try {
+      es = new EventSource('/api/stream/transactions');
+      es.addEventListener('tx', (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          if (data.reference === ref) {
+            setStatus(data.status);
+            if (data.status === 'completed') {
+              es.close();
+            }
+          }
+        } catch {}
+      });
+      es.onerror = () => {
+        // Allow normal polling to continue; close to avoid reconnection storms
+        try { es.close(); } catch {}
+      };
+    } catch {}
     const poll = async () => {
       try {
         const r = await fetch(`/api/payments/paystack/status/${encodeURIComponent(ref)}`);
@@ -33,7 +53,7 @@ export default function PaymentResult() {
       }
     };
     poll();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; if (es) try { es.close(); } catch {} };
   }, [ref]);
 
   return (
