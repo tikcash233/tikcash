@@ -6,6 +6,7 @@ export default function PaymentResult() {
   const ref = params.get('ref');
   const [status, setStatus] = useState('checking');
   const [error, setError] = useState('');
+  const [verifying, setVerifying] = useState(false);
 
   const webhookRef = useRef(false);
   useEffect(() => {
@@ -56,6 +57,18 @@ export default function PaymentResult() {
     return () => { cancelled = true; if (es) try { es.close(); } catch {} };
   }, [ref]);
 
+  const manualVerify = async () => {
+    if (!ref || verifying) return;
+    try {
+      setVerifying(true);
+      const r = await fetch(`/api/payments/paystack/verify/${encodeURIComponent(ref)}`);
+      const j = await r.json().catch(() => ({}));
+      if (j && j.status) setStatus(j.status);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto py-16 px-4 text-center">
       <h1 className="text-2xl font-bold mb-4">Payment Result</h1>
@@ -65,6 +78,14 @@ export default function PaymentResult() {
           <p className="mb-2 text-sm text-gray-500 break-all">Reference: {ref}</p>
           <p className="mb-6 font-medium capitalize">Status: {status}</p>
           {status === 'completed' && <p className="text-green-600 mb-4">Tip recorded! You can close this page.</p>}
+          {status === 'pending' && (
+            <div className="mb-4 text-sm text-gray-600">
+              <p className="mb-2">Waiting for confirmation… if this takes too long, click verify:</p>
+              <button disabled={verifying} onClick={manualVerify} className="px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50">
+                {verifying ? 'Verifying…' : 'Verify Now'}
+              </button>
+            </div>
+          )}
           {error && <p className="text-xs text-red-500 mb-4">{error}</p>}
           <div className="space-x-4">
             <Link to="/support" className="text-blue-600 underline">Back to Support</Link>

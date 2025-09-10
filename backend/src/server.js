@@ -25,7 +25,8 @@ app.use(helmet());
 app.use(compression());
 // Capture raw body for Paystack webhook signature verification while still parsing JSON normally elsewhere
 app.use((req, res, next) => {
-  if (req.url.startsWith('/api/paystack/webhook')) {
+  const isPaystackWebhook = req.url.startsWith('/api/paystack/webhook') || req.url.startsWith('/api/payments/paystack/webhook');
+  if (isPaystackWebhook) {
     let data = '';
     req.setEncoding('utf8');
     req.on('data', (chunk) => { data += chunk; });
@@ -59,7 +60,21 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Basic rate limit (tune for production / per-route)
-const limiter = rateLimit({ windowMs: 60 * 1000, max: 200 });
+// Skip sensitive endpoints like webhooks and SSE which may legitimately receive bursts
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    const p = req.path || '';
+    return (
+      p.startsWith('/api/paystack/webhook') ||
+      p.startsWith('/api/payments/paystack/webhook') ||
+      p.startsWith('/api/stream/')
+    );
+  }
+});
 app.use(limiter);
 
 // Auth helpers
@@ -432,8 +447,8 @@ app.get('/api/payments/paystack/verify/:reference', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Paystack webhook endpoint
-app.post('/api/paystack/webhook', async (req, res, next) => {
+// Paystack webhook handler (shared)
+async function handlePaystackWebhook(req, res, next) {
   try {
     const signature = req.headers['x-paystack-signature'];
     // Lazy import to avoid circular top-level await
@@ -473,7 +488,11 @@ app.post('/api/paystack/webhook', async (req, res, next) => {
     }
     res.json({ received: true });
   } catch (e) { next(e); }
-});
+}
+
+// Paystack webhook endpoints (both variants supported)
+app.post('/api/paystack/webhook', handlePaystackWebhook);
+app.post('/api/payments/paystack/webhook', handlePaystackWebhook);
 
 // SSE (Server-Sent Events) stream for real-time transaction updates
 app.get('/api/stream/transactions', (req, res) => {
