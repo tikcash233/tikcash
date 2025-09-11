@@ -72,6 +72,9 @@ export const Creator = {
   },
   async update(id, patch) {
     return await fetchJson(`/api/creators/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  },
+  async get(id) {
+    return await fetchJson(`/api/creators/${id}`);
   }
 };
 

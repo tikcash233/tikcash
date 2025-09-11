@@ -38,6 +38,7 @@ export default function CreatorDashboard() {
   // sound removed; toast banner only
   const safetySyncTimerRef = useRef(null); // holds periodic sync interval
   const visibilityRef = useRef(document.visibilityState === 'visible');
+  const creatorIdRef = useRef(null);
   // bell removed; we just keep a toast + sound toggle
   const processedTipIdsRef = useRef(new Set()); // avoid double-applying same tip across bus+broadcast
   const lastNotifiedTipIdRef = useRef(null); // last tip key we notified for this creator (persisted)
@@ -129,6 +130,14 @@ export default function CreatorDashboard() {
     }
   }, [creator, getTipKey, saveLastNotified]);
 
+  // Keep latest handlers in refs to avoid re-subscribing SSE on every render
+  const shouldNotifyRef = useRef(shouldNotify);
+  const showTipNowRef = useRef(showTipNow);
+  const markNotifiedRef = useRef(markNotified);
+  useEffect(() => { shouldNotifyRef.current = shouldNotify; }, [shouldNotify]);
+  useEffect(() => { showTipNowRef.current = showTipNow; }, [showTipNow]);
+  useEffect(() => { markNotifiedRef.current = markNotified; }, [markNotified]);
+
   // Subscribe to in-app bus
   useEffect(() => {
   const off = RealtimeBus.on("transaction:tip", (tip) => {
@@ -187,12 +196,11 @@ export default function CreatorDashboard() {
 
   // Light periodic sync (safety) with visibility awareness.
   useEffect(() => {
-    if (!creator || !user) return;
+    if (!creator?.id || !user?.email) return;
     const run = async () => {
       if (!visibilityRef.current) return; // skip if hidden
       try {
-        const list = await Creator.filter({ created_by: user.email });
-        if (list && list[0]) setCreator(list[0]);
+        // Only refresh transactions to avoid unnecessary re-renders
         const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
         setTransactions(latest);
       } catch {}
@@ -200,7 +208,7 @@ export default function CreatorDashboard() {
     // initial run only if visible
     if (document.visibilityState === 'visible') run();
     // start interval
-    safetySyncTimerRef.current = setInterval(run, 60000);
+    safetySyncTimerRef.current = setInterval(run, 10000);
     const onVis = () => {
       const vis = document.visibilityState === 'visible';
       visibilityRef.current = vis;
@@ -208,7 +216,7 @@ export default function CreatorDashboard() {
         // run immediate sync after becoming visible
         run();
         if (!safetySyncTimerRef.current) {
-          safetySyncTimerRef.current = setInterval(run, 60000);
+          safetySyncTimerRef.current = setInterval(run, 10000);
         }
       } else {
         // pause interval while hidden
@@ -224,19 +232,24 @@ export default function CreatorDashboard() {
       if (safetySyncTimerRef.current) clearInterval(safetySyncTimerRef.current);
       safetySyncTimerRef.current = null;
     };
-  }, [creator, user]);
+  }, [creator?.id, user?.email]);
 
   // SSE subscription with exponential backoff reconnect; keep connected even when hidden
   useEffect(() => {
-    if (!creator) return;
+    if (!creator?.id) return;
     let es = null;
     let closed = false;
     let attempt = 0;
     const baseDelay = 1000; // 1s
     const maxDelay = 30000; // 30s
+    const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
+      ? import.meta.env.VITE_API_URL
+      : ((typeof window !== 'undefined' && window.__API_BASE__) || '');
+    const STREAM_URL = API_BASE ? `${API_BASE}/api/stream/transactions` : '/api/stream/transactions';
 
     const processEvent = (data) => {
-      if (!data || data.creator_id !== creator.id) return;
+      const currentId = creatorIdRef.current || creator?.id;
+      if (!data || !currentId || data.creator_id !== currentId) return;
       // Always upsert transaction for this reference (pending or completed)
       setTransactions((prev) => {
         const exists = prev.find(t => (t.payment_reference || t.reference) === data.reference);
@@ -261,9 +274,19 @@ export default function CreatorDashboard() {
         return next.slice(0,50);
       });
 
-      // Apply balances only when completed
+      // Apply balances only when completed and then fetch canonical creator to avoid drift
       if (data.status === 'completed') {
         setCreator((prev) => prev ? { ...prev, total_earnings: (prev.total_earnings||0)+Number(data.amount||0), available_balance: (prev.available_balance||0)+Number(data.amount||0) } : prev);
+        // Fetch fresh creator from API to ensure exact server values (handles concurrent tips)
+        (async () => {
+          try {
+            const id = creatorIdRef.current || creator?.id;
+            if (id) {
+              const fresh = await Creator.get(id);
+              if (fresh) setCreator(fresh);
+            }
+          } catch {}
+        })();
       }
 
       // Show banner on pending and completed (dedupe via stable key)
@@ -278,21 +301,32 @@ export default function CreatorDashboard() {
         message: data.message,
         status: data.status,
       };
-      if (shouldNotify(maybeTip)) {
-        showTipNow(maybeTip);
-        markNotified(maybeTip);
+      // Always show banner for pending/completed once; ensures visibility even if UI missed pending
+      if (shouldNotifyRef.current(maybeTip)) {
+        showTipNowRef.current(maybeTip);
+        markNotifiedRef.current(maybeTip);
       }
     };
 
     const connect = () => {
       if (closed) return;
       try {
-        es = new EventSource('/api/stream/transactions');
+  es = new EventSource(STREAM_URL);
         console.debug('[SSE] connecting /api/stream/transactions');
         es.addEventListener('tx', (evt) => {
           try { processEvent(JSON.parse(evt.data)); } catch {}
         });
-        es.onopen = () => { attempt = 0; console.debug('[SSE] connected'); }; // reset backoff
+        es.onopen = () => {
+          attempt = 0;
+          console.debug('[SSE] connected');
+          // Immediately refresh transactions to catch anything missed while disconnected
+          (async () => {
+            try {
+              const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
+              setTransactions(latest);
+            } catch {}
+          })();
+        }; // reset backoff
         es.onerror = () => {
           console.warn('[SSE] error, will retry');
           try { es.close(); } catch {}
@@ -324,7 +358,7 @@ export default function CreatorDashboard() {
       document.removeEventListener('visibilitychange', onVis);
       if (es) try { es.close(); } catch {}
     };
-  }, [creator, shouldNotify, showTipNow, markNotified]);
+  }, [creator?.id]);
 
   // Seed last-notified from storage on initial load, or to newest existing tip to avoid retro-toasts
   useEffect(() => {
@@ -355,6 +389,11 @@ export default function CreatorDashboard() {
 
   // Stable close handler so auto-dismiss timer isn't reset on each render
   const closeTip = useCallback(() => setLiveTip(null), []);
+
+  // Keep current creator id in a ref for stable SSE filtering
+  useEffect(() => {
+    creatorIdRef.current = creator?.id || null;
+  }, [creator?.id]);
 
   const loadDashboardData = async () => {
     try {

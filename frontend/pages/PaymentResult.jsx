@@ -20,7 +20,11 @@ export default function PaymentResult() {
     // Open SSE stream for instant status updates
     let es;
     try {
-      es = new EventSource('/api/stream/transactions');
+      const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
+        ? import.meta.env.VITE_API_URL
+        : ((typeof window !== 'undefined' && window.__API_BASE__) || '');
+      const STREAM_URL = API_BASE ? `${API_BASE}/api/stream/transactions` : '/api/stream/transactions';
+      es = new EventSource(STREAM_URL);
       es.addEventListener('tx', (evt) => {
         try {
           const data = JSON.parse(evt.data);
