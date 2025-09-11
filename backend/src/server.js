@@ -459,31 +459,35 @@ async function handlePaystackWebhook(req, res, next) {
     const event = req.body;
     if (event?.event === 'charge.success') {
       const data = event.data;
+      const ref = data?.reference;
       const metadata = data?.metadata || {};
-      const creator_id = metadata.creator_id;
-      if (creator_id) {
-        // Create transaction & update balances if not already inserted (idempotency by payment_reference)
-        // Check if reference exists
-        try {
-          const existing = await pool.query('SELECT id FROM transactions WHERE payment_reference = $1 LIMIT 1', [data.reference]);
-          let finalTx;
-          if (existing.rowCount === 0) {
-            finalTx = await createTipAndApply({
-              creator_id,
-              supporter_name: metadata.supporter_name || data.customer?.email || 'Anonymous',
-              amount: Number(data.amount) / 100, // convert pesewas to GHS
-              message: metadata.message || null,
-              transaction_type: 'tip',
-              status: 'completed',
-              payment_reference: data.reference,
-            });
-          } else {
-            finalTx = await getTransactionByReference(data.reference);
-          }
-          emitTransactionEvent(finalTx);
-        } catch (err) {
-          console.error('Failed to persist Paystack tip', err);
+      const creator_id = metadata.creator_id || null;
+      const amountGHS = Number(data?.amount || 0) / 100; // pesewas -> GHS
+      // Idempotent upsert: if we already have a pending row for this reference, complete it; otherwise create now
+      try {
+        const existing = await pool.query('SELECT id FROM transactions WHERE payment_reference = $1 LIMIT 1', [ref]);
+        let finalTx = null;
+        if (existing.rowCount > 0) {
+          // Complete previously created pending transaction and apply balances
+          finalTx = await completePendingTip(ref, amountGHS) || await getTransactionByReference(ref);
+        } else if (creator_id) {
+          // No row yet (e.g., user paid without pre-insert) → create completed tip and apply balances
+          finalTx = await createTipAndApply({
+            creator_id,
+            supporter_name: metadata.supporter_name || data.customer?.email || 'Anonymous',
+            amount: amountGHS,
+            message: metadata.message || null,
+            transaction_type: 'tip',
+            status: 'completed',
+            payment_reference: ref,
+          });
+        } else {
+          // Missing creator_id and no existing tx; log for observability
+          console.warn('[webhook] charge.success missing creator_id and no existing tx for ref', ref);
         }
+        if (finalTx) emitTransactionEvent(finalTx);
+      } catch (err) {
+        console.error('Failed to persist Paystack tip', err);
       }
     }
     res.json({ received: true });
