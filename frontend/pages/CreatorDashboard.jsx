@@ -31,17 +31,20 @@ export default function CreatorDashboard() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const { success, error } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
   const [liveTip, setLiveTip] = useState(null);
   const [tipQueue, setTipQueue] = useState([]);
-  const [tipSoundOn, setTipSoundOn] = useState(true);
+  // sound removed; toast banner only
   const safetySyncTimerRef = useRef(null); // holds periodic sync interval
   const visibilityRef = useRef(document.visibilityState === 'visible');
   // bell removed; we just keep a toast + sound toggle
   const processedTipIdsRef = useRef(new Set()); // avoid double-applying same tip across bus+broadcast
-  const lastNotifiedTipIdRef = useRef(null); // last tip id we notified for this creator (persisted)
-  const notifiedTipIdsRef = useRef(new Set()); // in-session set of tip ids we already showed as toast
+  const lastNotifiedTipIdRef = useRef(null); // last tip key we notified for this creator (persisted)
+  const notifiedTipIdsRef = useRef(new Set()); // in-session set of tip keys we already showed as toast
+
+  // Stable tip key: id || payment_reference || reference
+  const getTipKey = useCallback((t) => (t?.id || t?.payment_reference || t?.reference || null), []);
 
   // Helpers for persisting last-notified per creator
   const getNotifyKey = useCallback((creatorId) => `tikcash:last_notified_tip:${creatorId}`, []);
@@ -55,19 +58,23 @@ export default function CreatorDashboard() {
   }, [getNotifyKey]);
 
   const shouldNotify = useCallback((tip, c = creator) => {
-    if (!tip || !tip.id || !c?.id) return false;
+    if (!tip || !c?.id) return false;
     if (String(tip.creator_id) !== String(c.id)) return false;
-    if (notifiedTipIdsRef.current.has(tip.id)) return false;
-    if (lastNotifiedTipIdRef.current && lastNotifiedTipIdRef.current === tip.id) return false;
+    const key = getTipKey(tip);
+    if (!key) return false;
+    if (notifiedTipIdsRef.current.has(key)) return false;
+    if (lastNotifiedTipIdRef.current && lastNotifiedTipIdRef.current === key) return false;
     return true;
-  }, [creator]);
+  }, [creator, getTipKey]);
 
   const markNotified = useCallback((tip, c = creator) => {
-    if (!tip?.id || !c?.id) return;
-    notifiedTipIdsRef.current.add(tip.id);
-    lastNotifiedTipIdRef.current = tip.id;
-    saveLastNotified(c.id, tip.id);
-  }, [creator, saveLastNotified]);
+    if (!tip || !c?.id) return;
+    const key = getTipKey(tip);
+    if (!key) return;
+    notifiedTipIdsRef.current.add(key);
+    lastNotifiedTipIdRef.current = key;
+    saveLastNotified(c.id, key);
+  }, [creator, saveLastNotified, getTipKey]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -78,7 +85,8 @@ export default function CreatorDashboard() {
   const addIncomingTip = (tip) => {
     if (!tip || tip.transaction_type !== "tip") return;
     setTransactions((prev) => {
-      const exists = prev.some((t) => t.id === tip.id);
+      const k = getTipKey(tip);
+      const exists = k ? prev.some((t) => getTipKey(t) === k) : false;
       if (exists) return prev;
   const next = [tip, ...prev];
   // Ensure sorted by created_date desc (robust to string/number) and limit to 50
@@ -91,10 +99,10 @@ export default function CreatorDashboard() {
   // Apply tip impact to creator balances exactly once per tip id
   const applyTipToCreator = (tip) => {
     if (!tip || !creator || tip.creator_id !== creator.id) return;
-    const id = tip.id;
-    if (!id) return;
-    if (processedTipIdsRef.current.has(id)) return; // already applied
-    processedTipIdsRef.current.add(id);
+    const key = getTipKey(tip);
+    if (!key) return;
+    if (processedTipIdsRef.current.has(key)) return; // already applied
+    processedTipIdsRef.current.add(key);
     const amt = Number(tip.amount || 0) || 0;
     if (amt <= 0) return;
     setCreator((prev) => {
@@ -107,18 +115,19 @@ export default function CreatorDashboard() {
     });
   };
 
-  // Immediately display newest tip by preempting current toast; push current back into queue
-  const showTipNow = (tip) => {
+  // Immediately display newest tip by preempting current toast (memoized to avoid re-subscribing SSE)
+  const showTipNow = useCallback((tip) => {
     if (!tip) return;
-  // Drop the current toast (do not re-queue) and ensure no duplicate of the new tip sits in queue
-  setTipQueue((q) => q.filter((t) => t.id !== tip.id));
-  setLiveTip(() => tip);
-  if (tip.id && creator?.id) {
-    lastNotifiedTipIdRef.current = tip.id;
-    saveLastNotified(creator.id, tip.id);
-    notifiedTipIdsRef.current.add(tip.id);
-  }
-  };
+    const key = getTipKey(tip);
+    // Drop the current toast (do not re-queue) and ensure no duplicate of the new tip sits in queue
+    setTipQueue((q) => q.filter((t) => getTipKey(t) !== key));
+    setLiveTip(() => tip);
+    if (key && creator?.id) {
+      lastNotifiedTipIdRef.current = key;
+      saveLastNotified(creator.id, key);
+      notifiedTipIdsRef.current.add(key);
+    }
+  }, [creator, getTipKey, saveLastNotified]);
 
   // Subscribe to in-app bus
   useEffect(() => {
@@ -217,7 +226,7 @@ export default function CreatorDashboard() {
     };
   }, [creator, user]);
 
-  // SSE subscription with exponential backoff reconnect & visibility awareness.
+  // SSE subscription with exponential backoff reconnect; keep connected even when hidden
   useEffect(() => {
     if (!creator) return;
     let es = null;
@@ -228,56 +237,64 @@ export default function CreatorDashboard() {
 
     const processEvent = (data) => {
       if (!data || data.creator_id !== creator.id) return;
-      if (data.status === 'completed') {
-        setCreator((prev) => prev ? { ...prev, total_earnings: (prev.total_earnings||0)+Number(data.amount||0), available_balance: (prev.available_balance||0)+Number(data.amount||0) } : prev);
-        setTransactions((prev) => {
-          const exists = prev.find(t => t.payment_reference === data.reference);
-            const fullTx = {
-              id: data.id || (exists && exists.id) || 'temp_'+data.reference,
-              creator_id: data.creator_id,
-              amount: data.amount,
-              transaction_type: data.transaction_type || 'tip',
-              status: data.status,
-              payment_reference: data.reference,
-              supporter_name: data.supporter_name || exists?.supporter_name || 'Anonymous',
-              message: data.message || exists?.message || null,
-              created_date: exists?.created_date || new Date().toISOString()
-            };
-            let next;
-            if (exists) {
-              next = prev.map(t => t.payment_reference === data.reference ? { ...t, ...fullTx } : t);
-            } else {
-              next = [fullTx, ...prev];
-            }
-            next.sort((a,b) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime());
-            return next.slice(0,50);
-        });
-        const maybeTip = {
-          id: data.id,
+      // Always upsert transaction for this reference (pending or completed)
+      setTransactions((prev) => {
+        const exists = prev.find(t => (t.payment_reference || t.reference) === data.reference);
+        const fullTx = {
+          id: data.id || (exists && exists.id) || 'temp_'+data.reference,
           creator_id: data.creator_id,
           amount: data.amount,
           transaction_type: data.transaction_type || 'tip',
-          payment_reference: data.reference,
-          supporter_name: data.supporter_name,
-          message: data.message,
           status: data.status,
+          payment_reference: data.reference,
+          supporter_name: data.supporter_name || exists?.supporter_name || 'Anonymous',
+          message: data.message || exists?.message || null,
+          created_date: exists?.created_date || new Date().toISOString()
         };
-        if (shouldNotify(maybeTip)) {
-          showTipNow(maybeTip);
-          markNotified(maybeTip);
+        let next;
+        if (exists) {
+          next = prev.map(t => (t.payment_reference || t.reference) === data.reference ? { ...t, ...fullTx } : t);
+        } else {
+          next = [fullTx, ...prev];
         }
+        next.sort((a,b) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime());
+        return next.slice(0,50);
+      });
+
+      // Apply balances only when completed
+      if (data.status === 'completed') {
+        setCreator((prev) => prev ? { ...prev, total_earnings: (prev.total_earnings||0)+Number(data.amount||0), available_balance: (prev.available_balance||0)+Number(data.amount||0) } : prev);
+      }
+
+      // Show banner on pending and completed (dedupe via stable key)
+      const maybeTip = {
+        id: data.id,
+        creator_id: data.creator_id,
+        amount: data.amount,
+        transaction_type: data.transaction_type || 'tip',
+        payment_reference: data.reference,
+        reference: data.reference,
+        supporter_name: data.supporter_name,
+        message: data.message,
+        status: data.status,
+      };
+      if (shouldNotify(maybeTip)) {
+        showTipNow(maybeTip);
+        markNotified(maybeTip);
       }
     };
 
     const connect = () => {
-      if (closed || !visibilityRef.current) return;
+      if (closed) return;
       try {
         es = new EventSource('/api/stream/transactions');
+        console.debug('[SSE] connecting /api/stream/transactions');
         es.addEventListener('tx', (evt) => {
           try { processEvent(JSON.parse(evt.data)); } catch {}
         });
-        es.onopen = () => { attempt = 0; }; // reset backoff
+        es.onopen = () => { attempt = 0; console.debug('[SSE] connected'); }; // reset backoff
         es.onerror = () => {
+          console.warn('[SSE] error, will retry');
           try { es.close(); } catch {}
           if (closed) return;
           attempt += 1;
@@ -285,26 +302,22 @@ export default function CreatorDashboard() {
           setTimeout(() => { connect(); }, delay);
         };
       } catch (err) {
+        console.warn('[SSE] connect failed, will retry');
         attempt += 1;
         const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
         setTimeout(() => { connect(); }, delay);
       }
     };
 
-    // Visibility hook to pause SSE when hidden
+    // Visibility hook: reconnect when visible if needed (do not force close when hidden)
     const onVis = () => {
       const vis = document.visibilityState === 'visible';
       visibilityRef.current = vis;
-      if (!vis) {
-        if (es) { try { es.close(); } catch {} es = null; }
-      } else {
-        attempt = 0;
-        connect();
-      }
+      if (vis && !es) { attempt = 0; connect(); }
     };
     document.addEventListener('visibilitychange', onVis);
-    // Initial connect only if visible
-    if (document.visibilityState === 'visible') connect();
+    // Initial connect regardless of visibility
+    connect();
 
     return () => {
       closed = true;
@@ -323,12 +336,13 @@ export default function CreatorDashboard() {
     }
     if (Array.isArray(transactions) && transactions.length > 0) {
       const newest = transactions.find((t) => t && t.transaction_type === 'tip');
-      if (newest?.id) {
-        lastNotifiedTipIdRef.current = newest.id;
-        saveLastNotified(creator.id, newest.id);
+      const key = getTipKey(newest);
+      if (key) {
+        lastNotifiedTipIdRef.current = key;
+        saveLastNotified(creator.id, key);
       }
     }
-  }, [creator, transactions, loadLastNotified, saveLastNotified]);
+  }, [creator, transactions, loadLastNotified, saveLastNotified, getTipKey]);
 
   // Dequeue toasts one at a time
   useEffect(() => {
@@ -405,10 +419,10 @@ export default function CreatorDashboard() {
       
       setShowWithdrawModal(false);
       await loadDashboardData();
-  success(`Withdrawal of GH₵ ${amount.toFixed(2)} requested to ${momo}.`);
+  toastSuccess(`Withdrawal of GH₵ ${amount.toFixed(2)} requested to ${momo}.`);
     } catch (error) {
   console.error("Error processing withdrawal:", error);
-      error("Failed to request withdrawal. Please try again.");
+      toastError("Failed to request withdrawal. Please try again.");
     }
     finally {
       setIsSubmittingWithdraw(false);
@@ -538,7 +552,7 @@ export default function CreatorDashboard() {
 
             {/* Recent Tips first on mobile */}
             <div className="lg:hidden">
-              <RecentTransactions transactions={transactions} tipSoundOn={tipSoundOn} onToggleSound={() => setTipSoundOn(v=>!v)} />
+              <RecentTransactions transactions={transactions} />
             </div>
             <PerformanceChart transactions={transactions} />
           </div>
@@ -547,7 +561,7 @@ export default function CreatorDashboard() {
           <div className="space-y-8 overflow-x-hidden">
             {/* Keep Recent Tips in sidebar on desktop */}
             <div className="hidden lg:block">
-              <RecentTransactions transactions={transactions} tipSoundOn={tipSoundOn} onToggleSound={() => setTipSoundOn(v=>!v)} />
+              <RecentTransactions transactions={transactions} />
             </div>
             <WithdrawalHistory transactions={transactions} />
           </div>
@@ -561,13 +575,12 @@ export default function CreatorDashboard() {
             onClose={() => setShowWithdrawModal(false)}
           />
         )}
-        {/* Live Tip Toast */}
-        <LiveTipToast
-          tip={liveTip}
-          onClose={closeTip}
-          soundEnabled={tipSoundOn}
-          duration={5000}
-        />
+  {/* Live Tip Banner (longer on desktop) */}
+  <LiveTipToast
+    tip={liveTip}
+    onClose={closeTip}
+    duration={(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(min-width: 1024px)').matches) ? 10000 : 7000}
+  />
       </div>
     </div>
   );

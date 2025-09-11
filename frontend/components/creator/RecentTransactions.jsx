@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Gift, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
+import { Gift, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function RecentTransactions({ transactions = [], tipSoundOn, onToggleSound }) {
+export default function RecentTransactions({ transactions = [] }) {
   const [isMobile, setIsMobile] = useState(false);
   const [openMessageId, setOpenMessageId] = useState(null);
 
@@ -73,17 +73,6 @@ export default function RecentTransactions({ transactions = [], tipSoundOn, onTo
       `}</style>
       <CardHeader className="flex items-center justify-between">
         <CardTitle>Recent Tips</CardTitle>
-        {typeof tipSoundOn === 'boolean' && typeof onToggleSound === 'function' && (
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-white text-gray-700 hover:bg-gray-50 text-sm"
-            onClick={onToggleSound}
-            title={tipSoundOn ? "Sound alerts: On" : "Sound alerts: Off"}
-          >
-            {tipSoundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            <span className="hidden sm:inline">Sound alerts</span>
-          </button>
-        )}
       </CardHeader>
       <CardContent className="overflow-x-hidden">
         {visible.length === 0 ? (
