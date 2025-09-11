@@ -60,22 +60,24 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Basic rate limit (tune for production / per-route)
-// Skip sensitive endpoints like webhooks and SSE which may legitimately receive bursts
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => {
-    const p = req.path || '';
-    return (
-      p.startsWith('/api/paystack/webhook') ||
-      p.startsWith('/api/payments/paystack/webhook') ||
-      p.startsWith('/api/stream/')
-    );
-  }
-});
-app.use(limiter);
+// In development, disable to avoid noisy 429s during local testing
+if (process.env.NODE_ENV === 'production') {
+  const limiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => {
+      const p = req.path || '';
+      return (
+        p.startsWith('/api/paystack/webhook') ||
+        p.startsWith('/api/payments/paystack/webhook') ||
+        p.startsWith('/api/stream/')
+      );
+    }
+  });
+  app.use(limiter);
+}
 
 // Auth helpers
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
