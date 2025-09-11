@@ -43,6 +43,20 @@ export default function CreatorDashboard() {
   const processedTipIdsRef = useRef(new Set()); // avoid double-applying same tip across bus+broadcast
   const lastNotifiedTipIdRef = useRef(null); // last tip key we notified for this creator (persisted)
   const notifiedTipIdsRef = useRef(new Set()); // in-session set of tip keys we already showed as toast
+  const txStatusByKeyRef = useRef(new Map()); // track last known status per tip to detect transitions
+  const lastCreatorRefreshAtRef = useRef(0);
+
+  const refreshCreatorThrottled = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastCreatorRefreshAtRef.current < 1500) return; // throttle to 1.5s
+    lastCreatorRefreshAtRef.current = now;
+    try {
+      const id = creatorIdRef.current || creator?.id;
+      if (!id) return;
+      const fresh = await Creator.get(id);
+      if (fresh) setCreator(fresh);
+    } catch {}
+  }, [creator]);
 
   // Stable tip key: id || payment_reference || reference
   const getTipKey = useCallback((t) => (t?.id || t?.payment_reference || t?.reference || null), []);
@@ -289,7 +303,7 @@ export default function CreatorDashboard() {
         })();
       }
 
-      // Show banner on pending and completed (dedupe via stable key)
+  // Show banner on pending and completed (dedupe via stable key)
       const maybeTip = {
         id: data.id,
         creator_id: data.creator_id,
@@ -306,6 +320,9 @@ export default function CreatorDashboard() {
         showTipNowRef.current(maybeTip);
         markNotifiedRef.current(maybeTip);
       }
+
+  // Always refresh creator balances (throttled) so cards update without manual refresh
+  refreshCreatorThrottled();
     };
 
     const connect = () => {
@@ -326,6 +343,8 @@ export default function CreatorDashboard() {
               setTransactions(latest);
             } catch {}
           })();
+          // Also refresh balances right away
+          refreshCreatorThrottled();
         }; // reset backoff
         es.onerror = () => {
           console.warn('[SSE] error, will retry');
@@ -386,6 +405,28 @@ export default function CreatorDashboard() {
       setTipQueue(rest);
     }
   }, [liveTip, tipQueue]);
+
+  // When transactions update (e.g., via periodic sync), detect pending->completed transitions and apply balances
+  useEffect(() => {
+    if (!creator) return;
+    const map = txStatusByKeyRef.current;
+    for (const t of transactions) {
+      if (!t || t.transaction_type !== 'tip') continue;
+      const key = getTipKey(t);
+      if (!key) continue;
+      const prev = map.get(key);
+      if (t.status === 'completed') {
+        if (prev && prev !== 'completed') {
+          // transitioned to completed -> apply balance once
+          applyTipToCreator(t);
+        }
+        map.set(key, 'completed');
+      } else {
+        // pending or other statuses
+        map.set(key, t.status);
+      }
+    }
+  }, [transactions, creator, getTipKey]);
 
   // Stable close handler so auto-dismiss timer isn't reset on each render
   const closeTip = useCallback(() => setLiveTip(null), []);
