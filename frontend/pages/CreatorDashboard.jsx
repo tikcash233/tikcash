@@ -45,6 +45,7 @@ export default function CreatorDashboard() {
   const notifiedTipIdsRef = useRef(new Set()); // in-session set of tip keys we already showed as toast
   const txStatusByKeyRef = useRef(new Map()); // track last known status per tip to detect transitions
   const lastCreatorRefreshAtRef = useRef(0);
+  const [balancePulse, setBalancePulse] = useState(false);
 
   const refreshCreatorThrottled = useCallback(async () => {
     const now = Date.now();
@@ -73,12 +74,12 @@ export default function CreatorDashboard() {
   }, [getNotifyKey]);
 
   const shouldNotify = useCallback((tip, c = creator) => {
+    // Show for any new tip (pending or completed) once by unique key
     if (!tip || !c?.id) return false;
     if (String(tip.creator_id) !== String(c.id)) return false;
     const key = getTipKey(tip);
     if (!key) return false;
     if (notifiedTipIdsRef.current.has(key)) return false;
-    if (lastNotifiedTipIdRef.current && lastNotifiedTipIdRef.current === key) return false;
     return true;
   }, [creator, getTipKey]);
 
@@ -128,6 +129,8 @@ export default function CreatorDashboard() {
         available_balance: (prev.available_balance || 0) + amt,
       };
     });
+    setBalancePulse(true);
+    setTimeout(() => setBalancePulse(false), 1200);
   };
 
   // Immediately display newest tip by preempting current toast (memoized to avoid re-subscribing SSE)
@@ -291,7 +294,8 @@ export default function CreatorDashboard() {
       // Apply balances only when completed and then fetch canonical creator to avoid drift
       if (data.status === 'completed') {
         setCreator((prev) => prev ? { ...prev, total_earnings: (prev.total_earnings||0)+Number(data.amount||0), available_balance: (prev.available_balance||0)+Number(data.amount||0) } : prev);
-        // Fetch fresh creator from API to ensure exact server values (handles concurrent tips)
+        setBalancePulse(true);
+        setTimeout(() => setBalancePulse(false), 1200);
         (async () => {
           try {
             const id = creatorIdRef.current || creator?.id;
@@ -345,6 +349,8 @@ export default function CreatorDashboard() {
           })();
           // Also refresh balances right away
           refreshCreatorThrottled();
+          setBalancePulse(true);
+          setTimeout(() => setBalancePulse(false), 1200);
         }; // reset backoff
         es.onerror = () => {
           console.warn('[SSE] error, will retry');
@@ -604,21 +610,29 @@ export default function CreatorDashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => (
-            <Card key={index} className="border-none shadow-lg hover:shadow-xl transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
-                    <p className={"text-2xl font-bold text-gray-900"}>{stat.value}</p>
+          {stats.map((stat, index) => {
+            const pulse = balancePulse && (stat.title === 'Total Earnings' || stat.title === 'Available Balance');
+            return (
+              <Card key={index} className={`border-none shadow-lg transition-all duration-300 ${pulse ? 'ring-2 ring-emerald-400 scale-[1.015]' : 'hover:shadow-xl'}`}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
+                        {stat.title}
+                        {pulse && (
+                          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                        )}
+                      </p>
+                      <p className={`text-2xl font-bold text-gray-900 ${pulse ? 'animate-pulse' : ''}`}>{stat.value}</p>
+                    </div>
+                    <div className={`p-3 rounded-xl ${stat.bgColor} ${pulse ? 'ring-2 ring-white/50' : ''}`}>
+                      <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                    </div>
                   </div>
-                  <div className={`p-3 rounded-xl ${stat.bgColor}`}>
-                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Main Dashboard Grid */}
