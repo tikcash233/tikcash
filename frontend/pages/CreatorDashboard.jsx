@@ -28,6 +28,9 @@ export default function CreatorDashboard() {
   const lastCreatorRefreshAtRef = useRef(0);
   const [balancePulse, setBalancePulse] = useState(false);
   const initializedRef = useRef(false);
+  
+  // Simple notification state for completed tips
+  const [completedTipNotification, setCompletedTipNotification] = useState(null);
 
   const refreshCreatorThrottled = useCallback(async () => {
     const now = Date.now();
@@ -131,6 +134,25 @@ export default function CreatorDashboard() {
     });
     setBalancePulse(true);
     setTimeout(() => setBalancePulse(false), 1200);
+    
+    // Show completion notification
+    showCompletedTipNotification(tip);
+  };
+
+  // Show a completion notification
+  const showCompletedTipNotification = (tip) => {
+    const notification = {
+      id: Date.now(),
+      amount: Number(tip.amount || 0),
+      supporter_name: tip.supporter_name || 'Anonymous',
+      message: tip.message || ''
+    };
+    setCompletedTipNotification(notification);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+      setCompletedTipNotification(null);
+    }, 5000);
   };
 
   // Subscribe to in-app bus
@@ -460,6 +482,65 @@ export default function CreatorDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+        
+        {/* Completed Tip Notification */}
+        {completedTipNotification && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none">
+            <style>{`
+              @keyframes slideDown {
+                from { opacity: 0; transform: translateY(-20px); }
+                to { opacity: 1; transform: translateY(0); }
+              }
+            `}</style>
+            <div className="pointer-events-auto bg-white border border-green-200 rounded-lg shadow-lg p-4 max-w-sm mx-auto animate-[slideDown_0.3s_ease-out]">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Gift className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">
+                    Tip Received! GH₵ {completedTipNotification.amount.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    from {completedTipNotification.supporter_name}
+                  </p>
+                  {completedTipNotification.message && (
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                      "{completedTipNotification.message}"
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setCompletedTipNotification(null)}
+                  className="text-gray-400 hover:text-gray-600 text-sm ml-1 pointer-events-auto"
+                  aria-label="Close notification"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Development test button */}
+        {import.meta.env.DEV && (
+          <div className="fixed bottom-4 right-4 z-40">
+            <button
+              onClick={() => {
+                const testTip = {
+                  amount: (Math.random() * 20 + 5).toFixed(2),
+                  supporter_name: 'Test Supporter',
+                  message: 'Thanks for the great content!'
+                };
+                showCompletedTipNotification(testTip);
+              }}
+              className="px-3 py-1.5 text-xs rounded-md bg-green-600 text-white hover:bg-green-700 shadow"
+            >
+              Test Notification
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
