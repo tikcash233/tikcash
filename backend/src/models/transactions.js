@@ -1,11 +1,19 @@
 import { query, withTransaction } from '../db.js';
 import { emitTransactionEvent } from '../events.js';
 
-export async function listTransactionsForCreator(creatorId, { limit = 50 } = {}) {
-  const res = await query(
-    'SELECT * FROM transactions WHERE creator_id = $1 ORDER BY created_date DESC LIMIT $2',
-    [creatorId, limit]
-  );
+export async function listTransactionsForCreator(creatorId, { limit = 50, includeExpired = false } = {}) {
+  let sql = 'SELECT * FROM transactions WHERE creator_id = $1';
+  const params = [creatorId];
+  
+  // Hide all pending and expired tips unless explicitly requested
+  if (!includeExpired) {
+    sql += ` AND status NOT IN ('pending', 'expired')`;
+  }
+  
+  sql += ' ORDER BY created_date DESC LIMIT $2';
+  params.push(limit);
+  
+  const res = await query(sql, params);
   return res.rows;
 }
 
@@ -117,4 +125,37 @@ export async function completePendingTip(reference, amount) {
   emitTransactionEvent(finalTx);
   return finalTx;
   });
+}
+
+// Cleanup function to mark old pending tips as expired/cancelled
+export async function expireOldPendingTips() {
+  try {
+    const result = await query(
+      `UPDATE transactions 
+       SET status = 'expired' 
+       WHERE status = 'pending' 
+       AND transaction_type = 'tip' 
+       AND created_date < NOW() - INTERVAL '30 minutes'
+       RETURNING id, payment_reference, creator_id`,
+      []
+    );
+    
+    // Emit events for expired tips so frontend can update
+    for (const tx of result.rows) {
+      emitTransactionEvent({
+        ...tx,
+        status: 'expired',
+        transaction_type: 'tip'
+      });
+    }
+    
+    if (result.rowCount > 0) {
+      console.log(`[cleanup] Expired ${result.rowCount} old pending tips`);
+    }
+    
+    return result.rowCount;
+  } catch (error) {
+    console.error('[cleanup] Failed to expire old pending tips:', error);
+    return 0;
+  }
 }

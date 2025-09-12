@@ -11,7 +11,7 @@ import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, Regi
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
-import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip, getByIdempotency, attachAuthorizationUrl } from './models/transactions.js';
+import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip, getByIdempotency, attachAuthorizationUrl, expireOldPendingTips } from './models/transactions.js';
 import { initializePaystackTransaction } from './payments/paystack.js';
 import { txEvents, emitTransactionEvent } from './events.js';
 import crypto from 'node:crypto';
@@ -630,6 +630,32 @@ function startServer(port, attemptsLeft = 5) {
   server.listen(port, () => {
     server.off('error', onError);
     console.log(`✅ API server listening on http://localhost:${port}`);
+    
+    // Start cleanup job for expired pending tips (runs every 5 minutes)
+    const cleanupInterval = setInterval(() => {
+      expireOldPendingTips().catch(err => {
+        console.error('[cleanup] Error in expireOldPendingTips:', err);
+      });
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    // Initial cleanup on startup
+    setTimeout(() => {
+      expireOldPendingTips().catch(err => {
+        console.error('[cleanup] Error in initial expireOldPendingTips:', err);
+      });
+    }, 10000); // 10 seconds after startup
+    
+    // Cleanup on shutdown
+    const gracefulShutdown = () => {
+      clearInterval(cleanupInterval);
+      server.close(() => {
+        console.log('✅ Server shutdown complete');
+        process.exit(0);
+      });
+    };
+    
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
   });
 }
 
