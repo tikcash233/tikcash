@@ -75,6 +75,8 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [location.pathname]);
 
+  // (Notification components removed)
+
   const onLogout = () => { setConfirmLogout(true); };
   const doLogout = () => {
     ApiUser.logout();
@@ -307,6 +309,7 @@ export default function Layout({ children, currentPageName }) {
         onConfirm={doLogout}
         onCancel={() => setConfirmLogout(false)}
       />
+      {/* Global notifications removed as per request */}
     </>
   );
 }

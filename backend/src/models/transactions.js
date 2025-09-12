@@ -10,7 +10,7 @@ export async function listTransactionsForCreator(creatorId, { limit = 50 } = {})
 }
 
 export async function createTransaction(data) {
-  const fields = ['creator_id','supporter_name','amount','message','transaction_type','status','payment_reference','momo_number'];
+  const fields = ['creator_id','supporter_name','amount','message','transaction_type','status','payment_reference','momo_number','idempotency_key','paystack_authorization_url'];
   const cols = [];
   const vals = [];
   const params = [];
@@ -24,6 +24,17 @@ export async function createTransaction(data) {
   const sql = `INSERT INTO transactions(${cols.join(',')}) VALUES(${vals.join(',')}) RETURNING *`;
   const res = await query(sql, params);
   return res.rows[0];
+}
+
+export async function getByIdempotency(creatorId, key) {
+  if (!creatorId || !key) return null;
+  const r = await query('SELECT * FROM transactions WHERE creator_id=$1 AND idempotency_key=$2 LIMIT 1', [creatorId, key]);
+  return r.rows[0] || null;
+}
+
+export async function attachAuthorizationUrl(transactionId, url) {
+  if (!transactionId || !url) return;
+  await query('UPDATE transactions SET paystack_authorization_url=$2 WHERE id=$1', [transactionId, url]);
 }
 
 // Atomic helper to apply a tip to creator balances and insert transaction

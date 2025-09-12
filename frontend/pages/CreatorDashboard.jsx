@@ -22,7 +22,7 @@ import WithdrawalHistory from "../components/creator/WithdrawalHistory";
 import WithdrawalModal from "../components/creator/WithdrawalModal";
 // Removed inline CreatorProfile fallback; use dedicated signup flow instead
 import PerformanceChart from "../components/creator/PerformanceChart";
-import LiveTipToast from "../components/creator/LiveTipToast";
+// LiveTipToast removed per request (notification system disabled)
 import { useToast } from "@/components/ui/toast.jsx";
 
 export default function CreatorDashboard() {
@@ -33,8 +33,7 @@ export default function CreatorDashboard() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const { success: toastSuccess, error: toastError } = useToast();
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
-  const [liveTip, setLiveTip] = useState(null);
-  const [tipQueue, setTipQueue] = useState([]);
+  // Notification system removed
   // sound removed; toast banner only
   const safetySyncTimerRef = useRef(null); // holds periodic sync interval
   const visibilityRef = useRef(document.visibilityState === 'visible');
@@ -134,25 +133,14 @@ export default function CreatorDashboard() {
   };
 
   // Immediately display newest tip by preempting current toast (memoized to avoid re-subscribing SSE)
-  const showTipNow = useCallback((tip) => {
-    if (!tip) return;
-    const key = getTipKey(tip);
-    // Drop the current toast (do not re-queue) and ensure no duplicate of the new tip sits in queue
-    setTipQueue((q) => q.filter((t) => getTipKey(t) !== key));
-    setLiveTip(() => tip);
-    if (key && creator?.id) {
-      lastNotifiedTipIdRef.current = key;
-      saveLastNotified(creator.id, key);
-      notifiedTipIdsRef.current.add(key);
-    }
-  }, [creator, getTipKey, saveLastNotified]);
+  const showTipNow = () => {};
 
   // Keep latest handlers in refs to avoid re-subscribing SSE on every render
   const shouldNotifyRef = useRef(shouldNotify);
   const showTipNowRef = useRef(showTipNow);
   const markNotifiedRef = useRef(markNotified);
   useEffect(() => { shouldNotifyRef.current = shouldNotify; }, [shouldNotify]);
-  useEffect(() => { showTipNowRef.current = showTipNow; }, [showTipNow]);
+  // showTipNowRef static (notifications disabled)
   useEffect(() => { markNotifiedRef.current = markNotified; }, [markNotified]);
 
   // Subscribe to in-app bus
@@ -404,13 +392,7 @@ export default function CreatorDashboard() {
   }, [creator, transactions, loadLastNotified, saveLastNotified, getTipKey]);
 
   // Dequeue toasts one at a time
-  useEffect(() => {
-    if (!liveTip && tipQueue.length > 0) {
-      const [next, ...rest] = tipQueue;
-      setLiveTip(next);
-      setTipQueue(rest);
-    }
-  }, [liveTip, tipQueue]);
+  // Tip queue logic removed
 
   // When transactions update (e.g., via periodic sync), detect pending->completed transitions and apply balances
   useEffect(() => {
@@ -435,7 +417,7 @@ export default function CreatorDashboard() {
   }, [transactions, creator, getTipKey]);
 
   // Stable close handler so auto-dismiss timer isn't reset on each render
-  const closeTip = useCallback(() => setLiveTip(null), []);
+  const closeTip = useCallback(() => {}, []);
 
   // Keep current creator id in a ref for stable SSE filtering
   useEffect(() => {
@@ -670,11 +652,7 @@ export default function CreatorDashboard() {
           />
         )}
   {/* Live Tip Banner (longer on desktop) */}
-  <LiveTipToast
-    tip={liveTip}
-    onClose={closeTip}
-    duration={(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(min-width: 1024px)').matches) ? 10000 : 7000}
-  />
+  {/* Live tip banner removed */}
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, Regi
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
-import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip } from './models/transactions.js';
+import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip, getByIdempotency, attachAuthorizationUrl } from './models/transactions.js';
 import { initializePaystackTransaction } from './payments/paystack.js';
 import { txEvents, emitTransactionEvent } from './events.js';
 import crypto from 'node:crypto';
@@ -391,30 +391,56 @@ app.post('/api/transactions', async (req, res, next) => {
 // Paystack: initiate a tip payment (create a pending transaction now, later completed by webhook)
 app.post('/api/payments/paystack/initiate', async (req, res, next) => {
   try {
-    const { creator_id, amount, supporter_name, message, supporter_email } = req.body || {};
+    const { creator_id, amount, supporter_name, message, supporter_email, idempotency_key } = req.body || {};
     if (!creator_id || typeof amount === 'undefined') return res.status(400).json({ error: 'creator_id and amount are required' });
     const amt = Number(amount);
     if (!(amt > 0)) return res.status(400).json({ error: 'Amount must be > 0' });
-    // Generate reference
+
+    // Basic validation of idempotency key (client should send a stable random string)
+    const idem = typeof idempotency_key === 'string' && idempotency_key.length >= 8 ? idempotency_key.slice(0, 128) : null;
+
+    // STEP 1: If an existing pending/completed transaction already exists for this (creator + key + same amount), return it.
+    if (idem) {
+      const existing = await getByIdempotency(creator_id, idem);
+      if (existing) {
+        // If it already has an authorization URL (previous initiate call) just return that; ensures duplicate suppression.
+        return res.json({
+          authorization_url: existing.paystack_authorization_url || null,
+          reference: existing.payment_reference,
+          reused: true,
+          status: existing.status,
+        });
+      }
+    }
+
+    // STEP 2: Create new pending transaction row first (so webhook can complete it later) with idempotency key.
     const reference = 'TIP_' + crypto.randomUUID().replace(/-/g, '').slice(0, 24);
-    // Insert pending transaction with zero amount for now (will be updated to actual amount on complete)
     const pendingTx = await createTransaction({
       creator_id,
       supporter_name: supporter_name || null,
-      amount: amt, // store intended amount already
+      amount: amt,
       message: message || null,
       transaction_type: 'tip',
       status: 'pending',
       payment_reference: reference,
+      idempotency_key: idem,
     });
     emitTransactionEvent(pendingTx);
+
+    // STEP 3: Call Paystack. If the network fails AFTER DB insert, client retry with same key will reuse row above.
     const initData = await initializePaystackTransaction({
       amountGHS: amt,
       email: supporter_email || 'anon@example.com',
       reference,
-  metadata: { creator_id, supporter_name, message },
-  callbackUrl: (process.env.PUBLIC_APP_URL || 'http://localhost:3000') + '/payment/result?ref=' + reference
+      metadata: { creator_id, supporter_name, message },
+      callbackUrl: (process.env.PUBLIC_APP_URL || 'http://localhost:3000') + '/payment/result?ref=' + reference
     });
+
+    // Persist authorization_url for future idempotent retries returning early
+    if (initData?.authorization_url) {
+      attachAuthorizationUrl(pendingTx.id, initData.authorization_url).catch(()=>{});
+    }
+
     res.json({ authorization_url: initData.authorization_url, reference });
   } catch (e) { next(e); }
 });

@@ -1,7 +1,18 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+// First try default .env (cwd). If DATABASE_URL still missing, fallback to backend/.env relative to this file.
 dotenv.config();
+if (!process.env.DATABASE_URL) {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const altPath = path.join(__dirname, '../.env');
+    dotenv.config({ path: altPath });
+  } catch (_) { /* ignore */ }
+}
 
 const { Pool } = pg;
 

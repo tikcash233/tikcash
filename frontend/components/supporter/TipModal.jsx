@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,32 +10,68 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 	const [isSending, setIsSending] = useState(false);
 	const presets = [5, 10, 50, 100];
 
+	// Keep a stable idempotency key for the current form submission (retries share it)
+	const currentKeyRef = useRef(null);
 	const submit = async (e) => {
 		e.preventDefault();
 		const value = parseFloat(amount || "0");
 		if (!isFinite(value) || value <= 0) return;
+		if (!navigator.onLine) { alert('You appear offline. Reconnect and try again.'); return; }
 		setIsSending(true);
 		try {
-			// Call backend initiate endpoint
-			const res = await fetch('/api/payments/paystack/initiate', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					creator_id: creator?.id,
-					amount: value,
-					supporter_name: name || 'Anonymous',
-					message: message || ''
-				})
-			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || 'Failed to start payment');
-			// Redirect to Paystack hosted page (server sets callback_url already)
-			window.location.href = data.authorization_url;
-		} catch (err) {
-			alert(err.message);
-		} finally {
-			setIsSending(false);
-		}
+			// Generate a key once per submission attempt
+			if (!currentKeyRef.current) {
+				currentKeyRef.current = 'idem_' + crypto.randomUUID().replace(/-/g,'').slice(0,24);
+			}
+			const attemptInitiate = async () => {
+				const controller = new AbortController();
+				const timeout = setTimeout(() => controller.abort(), 15000); // 15s safeguard
+				const res = await fetch('/api/payments/paystack/initiate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						creator_id: creator?.id,
+						amount: value,
+						supporter_name: name || 'Anonymous',
+						message: message || '',
+						idempotency_key: currentKeyRef.current,
+					}),
+					signal: controller.signal
+				});
+				clearTimeout(timeout);
+				const raw = await res.text();
+				let data = {};
+				if (raw) { try { data = JSON.parse(raw); } catch { throw new Error('Server sent invalid JSON'); } }
+				if (!res.ok) throw new Error(data.error || `Failed (status ${res.status})`);
+				if (!data.authorization_url) throw new Error('Missing authorization_url in response');
+				return data.authorization_url;
+			};
+			let attempts = 0;
+			let delay = 800; // initial backoff
+			while (true) {
+				try {
+					const url = await attemptInitiate();
+					window.location.href = url;
+					break;
+				} catch (err) {
+					// Retry ONLY for network errors / aborted / fetch fail; not for 4xx or server JSON errors
+					const msg = String(err.message || '');
+					const retriable = (
+						err.name === 'AbortError' ||
+						msg.includes('Failed to fetch') ||
+						msg.includes('NetworkError') ||
+						msg.includes('network connection was lost')
+					);
+					if (!retriable || attempts >= 3) {
+						if (err.name === 'AbortError') alert('Request timed out. Please try again.'); else alert(msg || 'Could not start payment');
+						break;
+					}
+					attempts += 1;
+					await new Promise(r => setTimeout(r, delay));
+					delay = Math.min(delay * 2, 4000);
+				}
+			}
+		} finally { setIsSending(false); }
 	};
 
 	return (
