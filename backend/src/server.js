@@ -5,7 +5,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import { pool } from './db.js';
+import { pool, getPoolStats, closePool } from './db.js';
 import { z } from 'zod';
 import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema, RequestVerifySchema, VerifyCodeSchema, ResetWithPinSchema, ChangePasswordSchema } from './schemas.js';
 import bcrypt from 'bcryptjs';
@@ -18,6 +18,16 @@ import crypto from 'node:crypto';
 import http from 'http';
 
 dotenv.config();
+
+// Activity tracking for smart resource management
+let lastActivityTime = Date.now();
+let activeSSEConnections = new Set();
+const IDLE_THRESHOLD = 30 * 60 * 1000; // 30 minutes of inactivity
+
+// Helper to update activity timestamp
+function recordActivity() {
+  lastActivityTime = Date.now();
+}
 
 const app = express();
 app.disable('x-powered-by');
@@ -46,11 +56,28 @@ const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.tr
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true); // allow same-origin/no origin
+    
+    // In development, allow all localhost origins
+    if (process.env.NODE_ENV !== 'production' && origin?.includes('localhost')) {
+      return cb(null, true);
+    }
+    
     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return cb(null, true);
     return cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
 }));
+
+// Activity tracking middleware for important endpoints
+app.use((req, res, next) => {
+  // Track activity for user-facing endpoints (exclude health checks, static assets)
+  const importantPaths = ['/api/creators', '/api/transactions', '/api/payments', '/api/auth'];
+  const isImportant = importantPaths.some(path => req.url.startsWith(path));
+  if (isImportant) {
+    recordActivity();
+  }
+  next();
+});
 
 if (process.env.NODE_ENV !== 'production') {
   // Log only problematic requests (status >= 400)
@@ -562,6 +589,11 @@ app.get('/api/stream/transactions', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders && res.flushHeaders();
 
+  // Track this SSE connection
+  const connectionId = crypto.randomUUID();
+  activeSSEConnections.add(connectionId);
+  recordActivity(); // SSE connection counts as activity
+
   const send = (payload) => {
     try {
       res.write(`event: tx\n`);
@@ -580,6 +612,7 @@ app.get('/api/stream/transactions', (req, res) => {
   req.on('close', () => {
     clearInterval(pingInterval);
     txEvents.off('tx', listener);
+    activeSSEConnections.delete(connectionId);
   });
 });
 
@@ -659,12 +692,39 @@ function startServer(port, attemptsLeft = 5) {
     server.off('error', onError);
     console.log(`✅ API server listening on http://localhost:${port}`);
     
-    // Start cleanup job for expired pending tips (runs every 5 minutes)
+    // Smart cleanup job for expired pending tips (runs every 5 minutes, but only when active)
     const cleanupInterval = setInterval(() => {
-      expireOldPendingTips().catch(err => {
-        console.error('[cleanup] Error in expireOldPendingTips:', err);
-      });
+      const timeSinceLastActivity = Date.now() - lastActivityTime;
+      const isIdle = timeSinceLastActivity > IDLE_THRESHOLD;
+      
+      if (!isIdle) {
+        // Only run cleanup if there's been recent activity
+        expireOldPendingTips().catch(err => {
+          console.error('[cleanup] Error in expireOldPendingTips:', err);
+        });
+      } else if (process.env.NODE_ENV !== 'production') {
+        console.log(`[cleanup] Skipping cleanup - idle for ${Math.round(timeSinceLastActivity / 60000)} minutes`);
+      }
     }, 5 * 60 * 1000); // 5 minutes
+    
+    // SSE connection monitoring (check every 10 minutes)
+    const sseMonitorInterval = setInterval(() => {
+      const activeConnections = activeSSEConnections.size;
+      const timeSinceLastActivity = Date.now() - lastActivityTime;
+      const poolStats = getPoolStats();
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Monitor] SSE: ${activeConnections}, Activity: ${Math.round(timeSinceLastActivity / 60000)}m ago, DB Pool: ${poolStats.totalCount}/${poolStats.idleCount}/${poolStats.waitingCount} (total/idle/waiting)`);
+      }
+      
+      // If no connections and idle for a while, we could optimize further
+      if (activeConnections === 0 && timeSinceLastActivity > IDLE_THRESHOLD) {
+        // Server is truly idle
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[Monitor] Server idle - no active SSE connections or recent activity');
+        }
+      }
+    }, 10 * 60 * 1000); // 10 minutes
     
     // Initial cleanup on startup
     setTimeout(() => {
@@ -674,8 +734,25 @@ function startServer(port, attemptsLeft = 5) {
     }, 10000); // 10 seconds after startup
     
     // Cleanup on shutdown
-    const gracefulShutdown = () => {
+    const gracefulShutdown = async () => {
+      console.log('\n🛑 Starting graceful shutdown...');
+      
+      // Clear intervals first
       clearInterval(cleanupInterval);
+      clearInterval(sseMonitorInterval);
+      
+      // Close all SSE connections
+      activeSSEConnections.clear();
+      
+      // Close database pool
+      try {
+        await closePool();
+        console.log('✅ Database pool closed');
+      } catch (err) {
+        console.error('❌ Error closing database pool:', err);
+      }
+      
+      // Close server
       server.close(() => {
         console.log('✅ Server shutdown complete');
         process.exit(0);

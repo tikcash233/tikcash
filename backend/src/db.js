@@ -22,11 +22,15 @@ if (!process.env.DATABASE_URL) {
 
 const connectionString = (process.env.DATABASE_URL || '').replace(/^['"]|['"]$/g, '');
 
+// Optimized pool configuration for production efficiency
 export const pool = new Pool({
   connectionString,
-  max: 10,
-  idleTimeoutMillis: 30000,
+  max: process.env.NODE_ENV === 'production' ? 5 : 10, // Fewer connections in production
+  min: 1, // Keep at least 1 connection warm
+  idleTimeoutMillis: process.env.NODE_ENV === 'production' ? 60000 : 30000, // Longer idle timeout in production
   connectionTimeoutMillis: 10000,
+  acquireTimeoutMillis: 8000, // Timeout for acquiring connection from pool
+  allowExitOnIdle: true, // Allow process to exit when all connections are idle
   ssl: process.env.DATABASE_URL?.includes('sslmode=require')
     ? { rejectUnauthorized: false }
     : false,
@@ -135,4 +139,18 @@ export async function withTransaction(fn) {
   } finally {
     client.release();
   }
+}
+
+// Pool monitoring for production optimization
+export function getPoolStats() {
+  return {
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount,
+  };
+}
+
+// Graceful pool shutdown
+export async function closePool() {
+  await pool.end();
 }
