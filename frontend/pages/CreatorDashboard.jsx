@@ -492,7 +492,7 @@ export default function CreatorDashboard() {
                 to { opacity: 1; transform: translateY(0); }
               }
             `}</style>
-            <div className="pointer-events-auto bg-white border border-green-200 rounded-lg shadow-lg p-4 max-w-sm mx-auto animate-[slideDown_0.3s_ease-out]">
+            <div className="pointer-events-auto bg-white border border-green-200 rounded-lg shadow-lg p-4 w-80 mx-auto animate-[slideDown_0.3s_ease-out]">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                   <Gift className="w-4 h-4 text-green-600" />
@@ -519,25 +519,6 @@ export default function CreatorDashboard() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Development test button */}
-        {import.meta.env.DEV && (
-          <div className="fixed bottom-4 right-4 z-40">
-            <button
-              onClick={() => {
-                const testTip = {
-                  amount: (Math.random() * 20 + 5).toFixed(2),
-                  supporter_name: 'Test Supporter',
-                  message: 'Thanks for the great content!'
-                };
-                showCompletedTipNotification(testTip);
-              }}
-              className="px-3 py-1.5 text-xs rounded-md bg-green-600 text-white hover:bg-green-700 shadow"
-            >
-              Test Notification
-            </button>
           </div>
         )}
 
