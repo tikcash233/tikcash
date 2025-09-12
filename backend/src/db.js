@@ -93,51 +93,91 @@ function recordFailure() {
 export async function query(text, params) {
   // Check circuit breaker
   if (!checkCircuitBreaker()) {
+    console.error('[DB] Circuit breaker OPEN - database temporarily unavailable');
     const error = new Error('DATABASE_CIRCUIT_OPEN');
     error.isNetworkError = true;
     throw error;
   }
 
   const start = Date.now();
-  try {
-    const res = await pool.query(text, params);
-    const duration = Date.now() - start;
-    
-    // Record success for circuit breaker
-    recordSuccess();
-    
-    if (process.env.NODE_ENV !== 'production') {
-      // basic log in dev
-      // console.log('executed query', { text, duration, rows: res.rowCount });
+  let retries = 2; // Allow 2 retry attempts for network issues
+  
+  while (retries >= 0) {
+    try {
+      const res = await pool.query(text, params);
+      const duration = Date.now() - start;
+      
+      // Record success for circuit breaker
+      recordSuccess();
+      
+      return res;
+    } catch (err) {
+      console.error('[DB] Query failed:', err.message);
+      console.error('[DB] Query was:', text);
+      console.error('[DB] Params:', params);
+      
+      // Check if this is a network-related error that can be retried
+      if (isNetworkError(err)) {
+        console.log(`[DB] Network issue detected: ${err.code || err.message}`);
+        
+        if (retries > 0) {
+          console.log(`[DB] Retrying query... (${retries} attempts remaining)`);
+          retries--;
+          // Wait 1 second before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        // All retries exhausted
+        console.error('[DB] All retry attempts failed, marking as offline');
+        recordFailure();
+        const networkError = new Error('DATABASE_OFFLINE');
+        networkError.isNetworkError = true;
+        networkError.originalError = err;
+        throw networkError;
+      }
+      
+      // For other errors, don't retry but still log
+      console.error('[DB] Non-network error, not retrying:', err.code || 'UNKNOWN');
+      throw err;
     }
-    return res;
-  } catch (err) {
-    // Check if this is a network-related error
-    if (isNetworkError(err)) {
-      recordFailure();
-      const networkError = new Error('DATABASE_OFFLINE');
-      networkError.isNetworkError = true;
-      networkError.originalError = err;
-      throw networkError;
-    }
-    
-    // For other errors, don't trigger circuit breaker
-    throw err;
   }
 }
 
 export async function withTransaction(fn) {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
     const result = await fn(client);
     await client.query('COMMIT');
     return result;
   } catch (e) {
-    await client.query('ROLLBACK');
+    console.error('[DB] Transaction failed:', e.message);
+    
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+        console.log('[DB] Transaction rolled back');
+      } catch (rollbackErr) {
+        console.error('[DB] Rollback failed:', rollbackErr.message);
+      }
+    }
+    
+    // Re-throw with context
+    if (isNetworkError(e)) {
+      console.error('[DB] Transaction failed due to network issue');
+      const networkError = new Error('DATABASE_OFFLINE');
+      networkError.isNetworkError = true;
+      networkError.originalError = e;
+      throw networkError;
+    }
+    
     throw e;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 }
 
@@ -150,7 +190,16 @@ export function getPoolStats() {
   };
 }
 
+// Add pool event listeners for debugging (only errors)
+if (process.env.NODE_ENV !== 'production') {
+  pool.on('error', (err) => {
+    console.error('[DB Pool] Pool error:', err.message);
+  });
+}
+
 // Graceful pool shutdown
 export async function closePool() {
+  console.log('[DB] Closing connection pool...');
   await pool.end();
+  console.log('[DB] Connection pool closed');
 }

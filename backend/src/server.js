@@ -5,7 +5,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import { pool, getPoolStats, closePool } from './db.js';
+import { pool, getPoolStats, closePool } from './db.js'; // Fixed import
 import { z } from 'zod';
 import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema, RequestVerifySchema, VerifyCodeSchema, ResetWithPinSchema, ChangePasswordSchema } from './schemas.js';
 import bcrypt from 'bcryptjs';
