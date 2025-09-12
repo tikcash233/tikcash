@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom layer space (optional) */
+/* @layer components { } */
+/* @layer utilities { } */
