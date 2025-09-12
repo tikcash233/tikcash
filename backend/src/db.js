@@ -32,15 +32,94 @@ export const pool = new Pool({
     : false,
 });
 
-export async function query(text, params) {
-  const start = Date.now();
-  const res = await pool.query(text, params);
-  const duration = Date.now() - start;
-  if (process.env.NODE_ENV !== 'production') {
-    // basic log in dev
-    // console.log('executed query', { text, duration, rows: res.rowCount });
+// Circuit breaker state
+let circuitBreakerState = {
+  failureCount: 0,
+  lastFailureTime: 0,
+  state: 'CLOSED' // CLOSED, OPEN, HALF_OPEN
+};
+
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+const CIRCUIT_BREAKER_TIMEOUT = 30000; // 30 seconds
+
+// Network error detection
+function isNetworkError(err) {
+  return err && (
+    err.code === 'ENOTFOUND' ||
+    err.code === 'ECONNREFUSED' ||
+    err.code === 'ETIMEDOUT' ||
+    err.code === 'ECONNRESET' ||
+    err.code === 'EHOSTUNREACH' ||
+    err.code === 'ENETUNREACH' ||
+    err.message?.includes('getaddrinfo') ||
+    err.message?.includes('connect')
+  );
+}
+
+// Circuit breaker logic
+function checkCircuitBreaker() {
+  const now = Date.now();
+  
+  if (circuitBreakerState.state === 'OPEN') {
+    if (now - circuitBreakerState.lastFailureTime > CIRCUIT_BREAKER_TIMEOUT) {
+      circuitBreakerState.state = 'HALF_OPEN';
+      return true;
+    }
+    return false;
   }
-  return res;
+  
+  return true;
+}
+
+function recordSuccess() {
+  circuitBreakerState.failureCount = 0;
+  circuitBreakerState.state = 'CLOSED';
+}
+
+function recordFailure() {
+  circuitBreakerState.failureCount++;
+  circuitBreakerState.lastFailureTime = Date.now();
+  
+  if (circuitBreakerState.failureCount >= CIRCUIT_BREAKER_THRESHOLD) {
+    circuitBreakerState.state = 'OPEN';
+    console.log('🔴 Circuit breaker OPEN - database temporarily unavailable');
+  }
+}
+
+export async function query(text, params) {
+  // Check circuit breaker
+  if (!checkCircuitBreaker()) {
+    const error = new Error('DATABASE_CIRCUIT_OPEN');
+    error.isNetworkError = true;
+    throw error;
+  }
+
+  const start = Date.now();
+  try {
+    const res = await pool.query(text, params);
+    const duration = Date.now() - start;
+    
+    // Record success for circuit breaker
+    recordSuccess();
+    
+    if (process.env.NODE_ENV !== 'production') {
+      // basic log in dev
+      // console.log('executed query', { text, duration, rows: res.rowCount });
+    }
+    return res;
+  } catch (err) {
+    // Check if this is a network-related error
+    if (isNetworkError(err)) {
+      recordFailure();
+      const networkError = new Error('DATABASE_OFFLINE');
+      networkError.isNetworkError = true;
+      networkError.originalError = err;
+      throw networkError;
+    }
+    
+    // For other errors, don't trigger circuit breaker
+    throw err;
+  }
 }
 
 export async function withTransaction(fn) {

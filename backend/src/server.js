@@ -328,10 +328,19 @@ app.get('/api/auth/dev-latest-code', async (req, res, next) => {
 // Creators
 app.get('/api/creators', async (req, res, next) => {
   try {
-  const { sort, category, search, created_by } = req.query;
-  const list = await listCreators({ sort, category, search, created_by });
+    const { sort, category, search, created_by } = req.query;
+    const list = await listCreators({ sort, category, search, created_by });
     res.json(list);
-  } catch (e) { next(e); }
+  } catch (e) { 
+    if (e.isNetworkError || e.message === 'DATABASE_OFFLINE' || e.message === 'DATABASE_CIRCUIT_OPEN') {
+      return res.status(503).json({ 
+        error: 'Service temporarily unavailable', 
+        message: 'Database connection lost. Please try again later.',
+        retryAfter: 30 
+      });
+    }
+    next(e); 
+  }
 });
 
 app.post('/api/creators', authRequired, async (req, res, next) => {
@@ -364,7 +373,16 @@ app.get('/api/creators/:id', async (req, res, next) => {
     const creator = await getCreatorById(id);
     if (!creator) return res.status(404).json({ error: 'Not found' });
     res.json(creator);
-  } catch (e) { next(e); }
+  } catch (e) { 
+    if (e.isNetworkError || e.message === 'DATABASE_OFFLINE' || e.message === 'DATABASE_CIRCUIT_OPEN') {
+      return res.status(503).json({ 
+        error: 'Service temporarily unavailable', 
+        message: 'Database connection lost. Please try again later.',
+        retryAfter: 30 
+      });
+    }
+    next(e); 
+  }
 });
 
 // Transactions
@@ -372,10 +390,20 @@ app.get('/api/creators/:id/transactions', async (req, res, next) => {
   try {
     const id = z.string().uuid().parse(req.params.id);
     const list = await listTransactionsForCreator(id, { limit: Number(req.query.limit) || 50 });
-  // cast numeric amount
-  const normalized = list.map(r => ({ ...r, amount: r.amount != null ? Number(r.amount) : r.amount }));
-  res.json(normalized);
-  } catch (e) { next(e); }
+    // cast numeric amount
+    const normalized = list.map(r => ({ ...r, amount: r.amount != null ? Number(r.amount) : r.amount }));
+    res.json(normalized);
+  } catch (e) { 
+    // Handle network/database errors gracefully
+    if (e.isNetworkError || e.message === 'DATABASE_OFFLINE' || e.message === 'DATABASE_CIRCUIT_OPEN') {
+      return res.status(503).json({ 
+        error: 'Service temporarily unavailable', 
+        message: 'Database connection lost. Please try again later.',
+        retryAfter: 30 
+      });
+    }
+    next(e); 
+  }
 });
 
 app.post('/api/transactions', async (req, res, next) => {

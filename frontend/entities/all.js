@@ -32,12 +32,34 @@ function getAuthHeaders() {
 
 async function fetchJson(path, options) {
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    ...options,
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.json();
+  try {
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      ...options,
+    });
+    
+    if (res.status === 503) {
+      // Service temporarily unavailable - database offline
+      const errorData = await res.json().catch(() => ({}));
+      const error = new Error('SERVICE_TEMPORARILY_UNAVAILABLE');
+      error.status = 503;
+      error.retryAfter = errorData.retryAfter || 30;
+      error.isTemporary = true;
+      throw error;
+    }
+    
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    // Network error (no internet, server down, etc.)
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      const networkError = new Error('NETWORK_ERROR');
+      networkError.isNetworkError = true;
+      networkError.isTemporary = true;
+      throw networkError;
+    }
+    throw err;
+  }
 }
 
 function sortByField(items, field) {

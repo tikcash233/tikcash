@@ -31,6 +31,9 @@ export default function CreatorDashboard() {
   
   // Simple notification state for completed tips
   const [completedTipNotification, setCompletedTipNotification] = useState(null);
+  
+  // Connection status for offline indicator
+  const [isOffline, setIsOffline] = useState(false);
 
   const refreshCreatorThrottled = useCallback(async () => {
     const now = Date.now();
@@ -83,11 +86,28 @@ export default function CreatorDashboard() {
       const creatorProfile = creators[0];
       setCreator(creatorProfile);
       creatorIdRef.current = creatorProfile.id; // Set ref for SSE processing
-      const creatorTransactions = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 50);
-      setTransactions(creatorTransactions);
+      try {
+        const creatorTransactions = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 50);
+        setTransactions(creatorTransactions);
+      } catch (txError) {
+        // Don't fail the whole dashboard if transactions can't load (offline)
+        if (txError.isTemporary || txError.status === 503 || txError.isNetworkError) {
+          console.warn('Transactions temporarily unavailable, loading creator profile only');
+          setTransactions([]); // Show empty state but allow user to access dashboard
+        } else {
+          throw txError; // Re-throw non-network errors
+        }
+      }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
-      navigate('/', { replace: true });
+      // Only redirect on non-network errors
+      if (!err.isTemporary && !err.isNetworkError && err.status !== 503) {
+        navigate('/', { replace: true });
+      } else {
+        // Show error state but don't redirect for network issues
+        toastError('Connection issues. Please check your internet and try again.');
+        setIsLoading(false);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -209,11 +229,12 @@ export default function CreatorDashboard() {
   const sseConnectedRef = useRef(false);       // true while EventSource.open
   const lastSseEventAtRef = useRef(0);         // timestamp (ms) of last received tx event OR open
 
-  // Lightweight conditional fallback poll (runs every 10s but usually NO-OP)
+  // Smart fallback polling with offline detection
   useEffect(() => {
     if (!creator?.id) return;
-    const INTERVAL = 10000; // check every 10s (more responsive for development)
+    let INTERVAL = 10000; // Base interval: 10s
     let stopped = false;
+    let consecutiveFailures = 0;
 
     const run = async () => {
       if (stopped) return;
@@ -221,19 +242,49 @@ export default function CreatorDashboard() {
       const connected = sseConnectedRef.current;
       const lastEvt = lastSseEventAtRef.current;
       const stale = (now - lastEvt) > 20000; // >20s without any SSE activity
+      
       // Only fetch when: not connected (after initial 3s grace) OR stale.
       if (connected && !stale) return; // nothing to do (SSE healthy)
+      
       if (import.meta.env.DEV) console.debug('[fallback] polling transactions (SSE disconnected or stale)');
       try {
         const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
         setTransactions(latest);
-      } catch {}
+        consecutiveFailures = 0; // Reset failure count on success
+        INTERVAL = 10000; // Reset to normal interval
+        setIsOffline(false); // Connection restored
+      } catch (err) {
+        consecutiveFailures++;
+        
+        // If it's a network/offline error, reduce polling frequency
+        if (err.isTemporary || err.status === 503 || err.isNetworkError) {
+          // Exponential backoff for offline scenarios
+          INTERVAL = Math.min(60000, 10000 * Math.pow(2, Math.min(consecutiveFailures - 1, 3))); // Max 60s
+          setIsOffline(true); // Mark as offline
+          if (import.meta.env.DEV) console.debug(`[fallback] Network issues detected, backing off to ${INTERVAL/1000}s`);
+        }
+      }
+    };
+
+    // Dynamic interval management
+    let intervalId;
+    const scheduleNext = () => {
+      if (stopped) return;
+      intervalId = setTimeout(() => {
+        run().then(scheduleNext);
+      }, INTERVAL);
     };
 
     // Initial delayed check (gives SSE chance to connect first)
-    const initial = setTimeout(run, 3000); // Shorter initial delay
-    const id = setInterval(run, INTERVAL);
-    return () => { stopped = true; clearTimeout(initial); clearInterval(id); };
+    const initial = setTimeout(() => {
+      run().then(scheduleNext);
+    }, 3000);
+    
+    return () => { 
+      stopped = true; 
+      clearTimeout(initial); 
+      if (intervalId) clearTimeout(intervalId);
+    };
   }, [creator?.id]);
 
   // SSE subscription with exponential backoff reconnect; keep connected even when hidden
@@ -482,6 +533,14 @@ export default function CreatorDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+        
+        {/* Offline Indicator */}
+        {isOffline && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4 text-center">
+            <span className="font-medium">⚠️ Connection issues detected</span>
+            <p className="text-sm mt-1">Data may not be up to date. Please check your internet connection.</p>
+          </div>
+        )}
         
         {/* Completed Tip Notification */}
         {completedTipNotification && (
