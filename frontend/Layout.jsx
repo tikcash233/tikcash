@@ -79,12 +79,12 @@ export default function Layout({ children, currentPageName }) {
 
   const onLogout = () => { setConfirmLogout(true); };
   const doLogout = () => {
-    ApiUser.logout();
-    setLoggedIn(false);
-    setConfirmLogout(false);
-    success('Logged out');
-    // Replace history so Back won’t reopen a protected page
-    navigate('/', { replace: true });
+  ApiUser.logout();
+  setLoggedIn(false);
+  setConfirmLogout(false);
+  // success('Logged out'); // Removed notification
+  // Replace history so Back won’t reopen a protected page
+  navigate('/', { replace: true });
   };
 
   return (

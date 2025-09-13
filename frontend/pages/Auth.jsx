@@ -72,9 +72,9 @@ export default function Auth() {
         success('Account created.');
         navigate(role === 'creator' ? '/creator' : '/');
       } else {
-        await User.login({ email, password });
-        success('Logged in.');
-        navigate('/creator');
+    await User.login({ email, password });
+    // success('Logged in.'); // Removed notification
+    navigate('/creator');
       }
     } catch (e) {
       error('Auth failed. Check your details and try again.');
