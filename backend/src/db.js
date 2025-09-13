@@ -91,9 +91,10 @@ function recordFailure() {
 }
 
 export async function query(text, params) {
+  const ENABLE_DB_LOGS = (process.env.ENABLE_DB_LOGS || '').toLowerCase() === 'true';
   // Check circuit breaker
   if (!checkCircuitBreaker()) {
-    console.error('[DB] Circuit breaker OPEN - database temporarily unavailable');
+  // Removed noisy DB log
     const error = new Error('DATABASE_CIRCUIT_OPEN');
     error.isNetworkError = true;
     throw error;
@@ -112,16 +113,14 @@ export async function query(text, params) {
       
       return res;
     } catch (err) {
-      console.error('[DB] Query failed:', err.message);
-      console.error('[DB] Query was:', text);
-      console.error('[DB] Params:', params);
+      // Removed noisy DB logs
       
       // Check if this is a network-related error that can be retried
       if (isNetworkError(err)) {
-        console.log(`[DB] Network issue detected: ${err.code || err.message}`);
+  // Removed noisy DB log
         
         if (retries > 0) {
-          console.log(`[DB] Retrying query... (${retries} attempts remaining)`);
+          // Removed noisy DB log
           retries--;
           // Wait 1 second before retrying
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -129,7 +128,7 @@ export async function query(text, params) {
         }
         
         // All retries exhausted
-        console.error('[DB] All retry attempts failed, marking as offline');
+  // Removed noisy DB log
         recordFailure();
         const networkError = new Error('DATABASE_OFFLINE');
         networkError.isNetworkError = true;
@@ -138,7 +137,7 @@ export async function query(text, params) {
       }
       
       // For other errors, don't retry but still log
-      console.error('[DB] Non-network error, not retrying:', err.code || 'UNKNOWN');
+  // Removed noisy DB log
       throw err;
     }
   }
@@ -153,20 +152,20 @@ export async function withTransaction(fn) {
     await client.query('COMMIT');
     return result;
   } catch (e) {
-    console.error('[DB] Transaction failed:', e.message);
+  // Removed noisy DB log
     
     if (client) {
       try {
         await client.query('ROLLBACK');
-        console.log('[DB] Transaction rolled back');
+  // Removed noisy DB log
       } catch (rollbackErr) {
-        console.error('[DB] Rollback failed:', rollbackErr.message);
+  // Removed noisy DB log
       }
     }
     
     // Re-throw with context
     if (isNetworkError(e)) {
-      console.error('[DB] Transaction failed due to network issue');
+  // Removed noisy DB log
       const networkError = new Error('DATABASE_OFFLINE');
       networkError.isNetworkError = true;
       networkError.originalError = e;
@@ -199,7 +198,5 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Graceful pool shutdown
 export async function closePool() {
-  console.log('[DB] Closing connection pool...');
   await pool.end();
-  console.log('[DB] Connection pool closed');
 }

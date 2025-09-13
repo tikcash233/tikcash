@@ -150,9 +150,7 @@ export async function expireOldPendingTips() {
     }
     
     const ENABLE_CLEANUP_LOGS = (process.env.ENABLE_CLEANUP_LOGS || '').toLowerCase() === 'true';
-    if (ENABLE_CLEANUP_LOGS && result.rowCount > 0) {
-      console.log(`[cleanup] Expired ${result.rowCount} old pending tips`);
-    }
+    // Removed noisy cleanup log
     
     return result.rowCount;
   } catch (error) {

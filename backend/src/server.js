@@ -714,16 +714,12 @@ function startServer(port, attemptsLeft = 5) {
       const timeSinceLastActivity = Date.now() - lastActivityTime;
       const poolStats = getPoolStats();
       
-      if (ENABLE_MONITOR_LOGS && process.env.NODE_ENV !== 'production') {
-        console.log(`[Monitor] SSE: ${activeConnections}, Activity: ${Math.round(timeSinceLastActivity / 60000)}m ago, DB Pool: ${poolStats.totalCount}/${poolStats.idleCount}/${poolStats.waitingCount} (total/idle/waiting)`);
-      }
+      // Removed noisy monitor log
       
       // If no connections and idle for a while, we could optimize further
       if (activeConnections === 0 && timeSinceLastActivity > IDLE_THRESHOLD) {
         // Server is truly idle
-        if (ENABLE_MONITOR_LOGS && process.env.NODE_ENV !== 'production') {
-          console.log('[Monitor] Server idle - no active SSE connections or recent activity');
-        }
+        // Removed noisy monitor log
       }
     }, 10 * 60 * 1000); // 10 minutes
     

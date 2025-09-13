@@ -158,7 +158,16 @@ ENABLE_CLEANUP_LOGS=false
 - `ENABLE_CLEANUP_LOGS=true` shows cleanup summaries when old pending tips are expired:
    `[cleanup] Expired 2 old pending tips`
 
-Leave them `false` (or unset) for a quiet console. In production (`NODE_ENV=production`) these logs are suppressed regardless of the flags.
+
+Additionally, you can silence all database-related logs (connection errors, retries, query failures) with:
+
+```
+ENABLE_DB_LOGS=false
+```
+
+Set to `true` to see all DB logs (default: false). Critical errors will still throw and show up as API errors, but the console will be much quieter.
+
+Leave all three flags `false` for minimal output.
 
 ### Simple definition of SSE
 Server-Sent Events (SSE) = a single always-open HTTP connection where the server can keep sending small text messages to the browser as things happen. Browser listens; no need to keep asking.
