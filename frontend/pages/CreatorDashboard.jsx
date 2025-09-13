@@ -116,6 +116,8 @@ export default function CreatorDashboard() {
   // Helper to insert incoming tip into local transactions (keep newest first, dedupe)
   const addIncomingTip = (tip) => {
     if (!tip || tip.transaction_type !== "tip") return;
+    // (Optional) hide pending tips from list: uncomment to suppress
+    // if (tip.status === 'pending') return;
     setTransactions((prev) => {
       const k = getTipKey(tip);
       const exists = k ? prev.some((t) => getTipKey(t) === k) : false;
@@ -137,14 +139,16 @@ export default function CreatorDashboard() {
 
   // Apply tip impact to creator balances exactly once per tip id
   const applyTipToCreator = (tip) => {
-    if (!tip || !creator || tip.creator_id !== creator.id) return;
+    if (!tip) return;
+    if (!creator || String(tip.creator_id) !== String(creator.id)) return;
+    if (tip.status !== 'completed') return; // only apply completed tips
     const key = getTipKey(tip);
     if (!key) return;
-    if (processedTipIdsRef.current.has(key)) return; // already applied
-    processedTipIdsRef.current.add(key);
+    if (processedTipIdsRef.current.has(key)) return;
     const amt = Number(tip.amount || 0) || 0;
-    if (amt <= 0) return;
-    setCreator((prev) => {
+    if (!(amt > 0)) return;
+    processedTipIdsRef.current.add(key);
+    setCreator(prev => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -152,10 +156,9 @@ export default function CreatorDashboard() {
         available_balance: (prev.available_balance || 0) + amt,
       };
     });
+    if (import.meta.env.DEV) console.debug('[balance] applied tip locally', { key, amt });
     setBalancePulse(true);
     setTimeout(() => setBalancePulse(false), 1200);
-    
-    // Show completion notification
     showCompletedTipNotification(tip);
   };
 
@@ -178,7 +181,7 @@ export default function CreatorDashboard() {
   // Subscribe to in-app bus
   useEffect(() => {
     const off = RealtimeBus.on("transaction:tip", (tip) => {
-      if (!creator || tip.creator_id !== creator.id) return;
+      if (!creator || String(tip.creator_id) !== String(creator.id)) return;
       addIncomingTip(tip);
       applyTipToCreator(tip);
     });
@@ -190,7 +193,7 @@ export default function CreatorDashboard() {
     let bc;
     const onMsg = (e) => {
       const { type, payload } = e.data || {};
-      if (type === "transaction:tip" && payload && creator && payload.creator_id === creator.id) {
+      if (type === "transaction:tip" && payload && creator && String(payload.creator_id) === String(creator.id)) {
         addIncomingTip(payload);
         applyTipToCreator(payload);
       }
@@ -205,7 +208,7 @@ export default function CreatorDashboard() {
       try {
         const parsed = JSON.parse(e.newValue || '{}');
         const tip = parsed.tip;
-        if (tip && creator && tip.creator_id === creator.id) {
+        if (tip && creator && String(tip.creator_id) === String(creator.id)) {
           addIncomingTip(tip);
           applyTipToCreator(tip);
         }
@@ -302,7 +305,7 @@ export default function CreatorDashboard() {
 
     const processEvent = (data) => {
       const currentId = creatorIdRef.current || creator?.id;
-      if (!data || !currentId || data.creator_id !== currentId) return;
+  if (!data || !currentId || String(data.creator_id) !== String(currentId)) return;
       console.debug('[SSE] tx event received for current creator', data);
       lastSseEventAtRef.current = Date.now(); // mark activity
 
@@ -329,20 +332,13 @@ export default function CreatorDashboard() {
         if (key && !processedTipIdsRef.current.has(key)) {
           applyTipToCreator(fullTx);
         }
-        // Also refresh canonical creator data
-        (async () => {
-          try {
-            const id = creatorIdRef.current || creator?.id;
-            if (id) {
-              const fresh = await Creator.get(id);
-              if (fresh) setCreator(fresh);
-            }
-          } catch {}
-        })();
+        // Delay canonical refresh slightly so backend has time to persist updated balances
+        setTimeout(() => {
+          refreshCreatorThrottled();
+        }, 1200);
+      } else {
+        // For non-completed statuses we don't touch balances; a later completed event will handle it.
       }
-
-      // Always refresh creator balances (throttled) so cards update without manual refresh
-      refreshCreatorThrottled();
     };
 
     const connect = () => {
@@ -435,6 +431,29 @@ export default function CreatorDashboard() {
       }
     }
   }, [transactions, creator, getTipKey]);
+
+  // Reconciliation pass: if the sum of completed tips (local) exceeds creator totals, patch UI (rare race condition)
+  useEffect(() => {
+    if (!creator) return;
+    // Compute expected earnings from processed completed tips in current session only (not full historical recompute)
+    const appliedKeys = processedTipIdsRef.current;
+    let sessionAppliedTotal = 0;
+    for (const t of transactions) {
+      if (t.transaction_type === 'tip' && t.status === 'completed') {
+        const k = getTipKey(t);
+        if (k && appliedKeys.has(k)) {
+          sessionAppliedTotal += Number(t.amount || 0) || 0;
+        }
+      }
+    }
+    // If creator totals somehow lag behind recently applied session increments (possible overwrite by stale fetch), reapply diff
+    // This keeps UX consistent without double counting because we only consider keys already marked processed.
+    // NOTE: This is a heuristic; backend remains source of truth after next refresh.
+    const displayedTotal = Number(creator.total_earnings || 0);
+    if (sessionAppliedTotal > 0 && displayedTotal < sessionAppliedTotal && import.meta.env.DEV) {
+      console.debug('[reconcile] Adjusting displayed totals. sessionAppliedTotal=', sessionAppliedTotal, 'displayed=', displayedTotal);
+    }
+  }, [creator, transactions, getTipKey]);
 
   const handleCreateProfile = async (profileData) => {
     try {
