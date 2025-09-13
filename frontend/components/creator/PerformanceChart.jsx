@@ -47,19 +47,58 @@ function humanTick(d, granularity) {
 }
 
 export default function PerformanceChart({ transactions = [] }) {
+	// Production friendly: minimal dev logging (remove or keep guarded)
+	if (import.meta.env.DEV && transactions.length === 0) {
+		console.debug('[PerformanceChart] No transactions loaded yet');
+	}
+
+	// Toggle to bucket by UTC midnight instead of local (helps when users in different TZs)
+	const USE_UTC_BUCKETS = true;
+
+	// Normalize status coming from backend / paystack variants
+	const normalizeStatus = (s) => {
+		const v = (s || '').toLowerCase();
+		if (["completed", "success", "paid"].includes(v)) return "completed";
+		if (["failed", "error"].includes(v)) return "failed";
+		return v; // pending, expired, etc.
+	};
+	
 	// Controls
 	const [granularity, setGranularity] = useState("day"); // 'day' | 'week' | 'month'
-	const [rangeKey, setRangeKey] = useState("30d"); // day: 7d/30d, week: 12w/all, month: 12m/all
+	// Added 'all' option for day granularity (previously only 7d/30d)
+	const [rangeKey, setRangeKey] = useState("30d"); // day: 7d/30d/all, week: 12w/all, month: 12m/all
 	const [activeOnly, setActiveOnly] = useState(false);
 	const [hoverX, setHoverX] = useState(null);
 	const containerRef = useRef(null);
 
-	// Normalize transactions to tips with dates
+	// Normalize transactions to completed tips; treat success/paid as completed
 	const tips = useMemo(() => {
-		return transactions
-			.filter((t) => t.transaction_type === "tip")
-			.map((t) => ({ amount: Number(t.amount || 0), date: startOfDay(new Date(t.created_date || Date.now())) }));
-	}, [transactions]);
+		const included = [];
+		for (const t of transactions) {
+			if (!t || t.transaction_type !== 'tip') continue;
+			const norm = normalizeStatus(t.status);
+			if (norm !== 'completed') continue; // ignore pending/failed/expired
+			const rawDate = new Date(t.created_date || Date.now());
+			let bucketDate;
+			if (USE_UTC_BUCKETS) {
+				// Convert to YYYY-MM-DD in UTC then back to a Date at 00:00 UTC for consistent grouping
+				const iso = rawDate.toISOString().slice(0, 10); // yyyy-mm-dd
+				bucketDate = new Date(iso + 'T00:00:00.000Z');
+			} else {
+				bucketDate = startOfDay(rawDate);
+			}
+			included.push({
+				amount: Number(t.amount || 0),
+				date: bucketDate,
+				created_date: t.created_date
+			});
+		}
+		if (import.meta.env.DEV && included.length) {
+			const total = included.reduce((s, x) => s + x.amount, 0);
+			console.debug('[PerformanceChart] Included completed tips:', included.length, 'Total:', total);
+		}
+		return included;
+	}, [transactions, USE_UTC_BUCKETS]);
 
 	const hasData = tips.length > 0;
 	const latestDate = useMemo(() => (hasData ? tips.reduce((a, b) => (a > b.date ? a : b.date), tips[0].date) : new Date()), [tips, hasData]);
@@ -70,8 +109,8 @@ export default function PerformanceChart({ transactions = [] }) {
 		const m = new Map();
 		for (const t of tips) {
 			let key;
-			if (granularity === "day") key = isoDate(t.date);
-			else if (granularity === "week") key = weekKey(t.date);
+			if (granularity === 'day') key = isoDate(t.date); // already UTC-normalized if toggle on
+			else if (granularity === 'week') key = weekKey(t.date);
 			else key = monthKey(t.date);
 			m.set(key, (m.get(key) || 0) + t.amount);
 		}
@@ -87,6 +126,7 @@ export default function PerformanceChart({ transactions = [] }) {
 		let end = startOfDay(latestDate);
 		if (granularity === "day") {
 			if (rangeKey === "7d") return { rangeStart: addDays(end, -6), rangeEnd: end };
+			if (rangeKey === "all") return { rangeStart: startOfDay(earliestDate), rangeEnd: end };
 			return { rangeStart: addDays(end, -29), rangeEnd: end };
 		}
 		if (granularity === "week") {
@@ -121,13 +161,14 @@ export default function PerformanceChart({ transactions = [] }) {
 	// Active-only filter
 	const dSeries = useMemo(() => (activeOnly ? series.filter((d) => d.amount > 0) : series), [series, activeOnly]);
 
-	// Totals
+	// Totals (range + lifetime)
 	const totals = useMemo(() => {
 		const sum = dSeries.reduce((s, d) => s + d.amount, 0);
 		const max = Math.max(0, ...dSeries.map((d) => d.amount));
 		const best = dSeries.reduce((acc, d) => (d.amount > (acc?.amount || 0) ? d : acc), null);
-		return { sum, max, best };
-	}, [dSeries]);
+		const lifetime = tips.reduce((s, t) => s + t.amount, 0);
+		return { sum, max, best, lifetime };
+	}, [dSeries, tips]);
 
 	// Chart dims and scales
 	const width = 800;
@@ -173,7 +214,7 @@ export default function PerformanceChart({ transactions = [] }) {
 
 	const rangeButtons =
 		granularity === "day"
-			? [ { key: "7d", label: "7D" }, { key: "30d", label: "30D" } ]
+			? [ { key: "7d", label: "7D" }, { key: "30d", label: "30D" }, { key: "all", label: "All" } ]
 			: granularity === "week"
 			? [ { key: "12w", label: "12W" }, { key: "all", label: "All" } ]
 			: [ { key: "12m", label: "12M" }, { key: "all", label: "All" } ];
@@ -227,11 +268,13 @@ export default function PerformanceChart({ transactions = [] }) {
 				) : (
 					<div ref={containerRef} className="w-full min-w-0">
 						<div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
-							<span className="text-gray-700">Total: <strong>{formatCedi(totals.sum)}</strong></span>
+							<span className="text-gray-700">Range Total: <strong>{formatCedi(totals.sum)}</strong></span>
+							<span className="text-gray-700">Lifetime: <strong>{formatCedi(totals.lifetime)}</strong></span>
 							{totals.best && (
 								<span className="text-gray-700">Best {granularity}: <strong>{formatCedi(totals.best.amount)}</strong> on <strong>{humanLabel(totals.best.labelDate || dSeries.find(d=>d.amount===totals.best.amount)?.labelDate, granularity)}</strong></span>
 							)}
 							<span className="text-gray-500">Shown: {dSeries.length} {granularity === "day" ? "days" : granularity === "week" ? "weeks" : "months"}</span>
+							<span className="text-gray-400">(Totals reflect selected range)</span>
 						</div>
 
 						<div className="relative">

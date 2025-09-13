@@ -708,19 +708,20 @@ function startServer(port, attemptsLeft = 5) {
     }, 5 * 60 * 1000); // 5 minutes
     
     // SSE connection monitoring (check every 10 minutes)
+    const ENABLE_MONITOR_LOGS = (process.env.ENABLE_MONITOR_LOGS || '').toLowerCase() === 'true';
     const sseMonitorInterval = setInterval(() => {
       const activeConnections = activeSSEConnections.size;
       const timeSinceLastActivity = Date.now() - lastActivityTime;
       const poolStats = getPoolStats();
       
-      if (process.env.NODE_ENV !== 'production') {
+      if (ENABLE_MONITOR_LOGS && process.env.NODE_ENV !== 'production') {
         console.log(`[Monitor] SSE: ${activeConnections}, Activity: ${Math.round(timeSinceLastActivity / 60000)}m ago, DB Pool: ${poolStats.totalCount}/${poolStats.idleCount}/${poolStats.waitingCount} (total/idle/waiting)`);
       }
       
       // If no connections and idle for a while, we could optimize further
       if (activeConnections === 0 && timeSinceLastActivity > IDLE_THRESHOLD) {
         // Server is truly idle
-        if (process.env.NODE_ENV !== 'production') {
+        if (ENABLE_MONITOR_LOGS && process.env.NODE_ENV !== 'production') {
           console.log('[Monitor] Server idle - no active SSE connections or recent activity');
         }
       }

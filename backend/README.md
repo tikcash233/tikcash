@@ -144,6 +144,22 @@ Production note: behind Nginx/Cloudflare ensure response buffering is disabled f
 - Add application layer rate limits per auth-sensitive route if needed (current global limiter is basic).
 - Backup & retention strategy for PostgreSQL (Neon provides branching & PITR options on paid tiers).
 
+### Verbose Log Control (Development Helpers)
+Two optional environment variables let you silence periodic console output in development:
+
+```
+# Disable noisy monitor/cleanup logs (default: both false)
+ENABLE_MONITOR_LOGS=false
+ENABLE_CLEANUP_LOGS=false
+```
+
+- `ENABLE_MONITOR_LOGS=true` shows 10‑minute interval SSE / DB pool stats like:
+   `[Monitor] SSE: 1, Activity: 0m ago, DB Pool: 1/1/0 (total/idle/waiting)`
+- `ENABLE_CLEANUP_LOGS=true` shows cleanup summaries when old pending tips are expired:
+   `[cleanup] Expired 2 old pending tips`
+
+Leave them `false` (or unset) for a quiet console. In production (`NODE_ENV=production`) these logs are suppressed regardless of the flags.
+
 ### Simple definition of SSE
 Server-Sent Events (SSE) = a single always-open HTTP connection where the server can keep sending small text messages to the browser as things happen. Browser listens; no need to keep asking.
 
