@@ -47,6 +47,22 @@ function humanTick(d, granularity) {
 }
 
 export default function PerformanceChart({ transactions = [] }) {
+	/*
+	Regression Safeguard Note:
+	The dashboard previously passed only the last 50 transactions to this component. When a NEW tip arrived,
+	the oldest transaction could fall out of that 50-item window. If that oldest transaction was the ONLY tip
+	for (say) 11 Sep 2025, its bucket total appeared to *decrease* (from that amount to 0) causing the chart
+	to visually “lose” money on that earlier day.
+
+	Fix implemented in CreatorDashboard.jsx:
+	- Introduced a dedicated `performanceTransactions` state that loads a much larger history (up to 1000 items)
+	  and is never truncated to 50.
+	- The recent transactions list still shows only up to 50 for UI performance, but the chart now receives
+	  the stable full history so historical day/period totals never change when new data arrives.
+
+	If you modify the data source again, ensure this component always gets *all* historical tips needed for
+	the displayed range or explicitly fetch aggregated stats from the backend.
+	*/
 	// Production friendly: minimal dev logging (remove or keep guarded)
 	if (import.meta.env.DEV && transactions.length === 0) {
 		console.debug('[PerformanceChart] No transactions loaded yet');

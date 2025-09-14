@@ -14,7 +14,10 @@ import { useToast } from "@/components/ui/toast.jsx";
 
 export default function CreatorDashboard() {
   const [creator, setCreator] = useState(null);
+  // Recent transactions (capped at 50) for sidebar/list components
   const [transactions, setTransactions] = useState([]);
+  // Full history (larger cap) dedicated to performance chart so historical points never shift
+  const [performanceTransactions, setPerformanceTransactions] = useState([]);
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -89,6 +92,16 @@ export default function CreatorDashboard() {
       try {
         const creatorTransactions = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 50);
         setTransactions(creatorTransactions);
+        // Fetch a larger window for chart (up to 1000) so old days are preserved
+        // This avoids the bug where adding a new tip pushes an old tip out of the 50-item list,
+        // which made that old day's total appear to “decrease”.
+        try {
+          const longHistory = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 1000);
+          setPerformanceTransactions(longHistory);
+        } catch (e) {
+          // If large fetch fails, fall back to recent list to at least show some data
+          setPerformanceTransactions(creatorTransactions);
+        }
       } catch (txError) {
         // Don't fail the whole dashboard if transactions can't load (offline)
         if (txError.isTemporary || txError.status === 503 || txError.isNetworkError) {
@@ -118,22 +131,26 @@ export default function CreatorDashboard() {
     if (!tip || tip.transaction_type !== "tip") return;
     // (Optional) hide pending tips from list: uncomment to suppress
     // if (tip.status === 'pending') return;
-    setTransactions((prev) => {
-      const k = getTipKey(tip);
-      const exists = k ? prev.some((t) => getTipKey(t) === k) : false;
-      if (exists) {
-        // Update existing transaction (e.g., pending -> completed)
-        const next = prev.map(t => getTipKey(t) === k ? { ...t, ...tip } : t);
-        const toTime = (t) => new Date(t.created_date || t.createdAt || Date.now()).getTime();
-        next.sort((a, b) => toTime(b) - toTime(a));
-        return next.slice(0, 50);
-      } else {
-        // Add new transaction
-        const next = [tip, ...prev];
-        const toTime = (t) => new Date(t.created_date || t.createdAt || Date.now()).getTime();
-        next.sort((a, b) => toTime(b) - toTime(a));
-        return next.slice(0, 50);
-      }
+    const k = getTipKey(tip);
+    // Update RECENT (capped)
+    setTransactions(prev => {
+      const exists = k ? prev.some(t => getTipKey(t) === k) : false;
+      const toTime = (t) => new Date(t.created_date || t.createdAt || Date.now()).getTime();
+      let next;
+      if (exists) next = prev.map(t => getTipKey(t) === k ? { ...t, ...tip } : t);
+      else next = [tip, ...prev];
+      next.sort((a, b) => toTime(b) - toTime(a));
+      return next.slice(0, 50);
+    });
+    // Update FULL HISTORY (larger cap) – do NOT slice to 50 so older buckets remain
+    setPerformanceTransactions(prev => {
+      const exists = k ? prev.some(t => getTipKey(t) === k) : false;
+      const toTime = (t) => new Date(t.created_date || t.createdAt || Date.now()).getTime();
+      let next;
+      if (exists) next = prev.map(t => getTipKey(t) === k ? { ...t, ...tip } : t);
+      else next = [tip, ...prev];
+      next.sort((a, b) => toTime(b) - toTime(a));
+      return next.slice(0, 1000); // hard safety cap
     });
   };
 
@@ -253,6 +270,10 @@ export default function CreatorDashboard() {
       try {
         const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
         setTransactions(latest);
+        try {
+          const longHistory = await Transaction.filter({ creator_id: creator.id }, '-created_date', 1000);
+          setPerformanceTransactions(longHistory);
+        } catch {}
         consecutiveFailures = 0; // Reset failure count on success
         INTERVAL = 10000; // Reset to normal interval
         setIsOffline(false); // Connection restored
@@ -368,6 +389,10 @@ export default function CreatorDashboard() {
             try {
               const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
               setTransactions(latest);
+              try {
+                const longHistory = await Transaction.filter({ creator_id: creator.id }, '-created_date', 1000);
+                setPerformanceTransactions(longHistory);
+              } catch {}
             } catch {}
           })();
           // Also refresh balances right away
@@ -413,7 +438,8 @@ export default function CreatorDashboard() {
   useEffect(() => {
     if (!creator) return;
     const map = txStatusByKeyRef.current;
-    for (const t of transactions) {
+    // Use performanceTransactions here so status transitions in older items are also considered
+    for (const t of performanceTransactions) {
       if (!t || t.transaction_type !== 'tip') continue;
       const key = getTipKey(t);
       if (!key) continue;
@@ -430,7 +456,7 @@ export default function CreatorDashboard() {
         map.set(key, t.status);
       }
     }
-  }, [transactions, creator, getTipKey]);
+  }, [transactions, performanceTransactions, creator, getTipKey]);
 
   // Reconciliation pass: if the sum of completed tips (local) exceeds creator totals, patch UI (rare race condition)
   useEffect(() => {
@@ -668,7 +694,8 @@ export default function CreatorDashboard() {
             <div className="lg:hidden">
               <RecentTransactions transactions={transactions} />
             </div>
-            <PerformanceChart transactions={transactions} />
+            {/* Use full history for stable chart so historical buckets never retroactively change */}
+            <PerformanceChart transactions={performanceTransactions} />
           </div>
 
           {/* Right Column */}
