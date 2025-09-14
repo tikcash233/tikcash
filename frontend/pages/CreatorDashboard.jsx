@@ -58,18 +58,16 @@ export default function CreatorDashboard() {
     loadDashboardData();
   }, []);
 
-  // Initialize processedTipIdsRef with existing completed tips to prevent double-applying balances on load
+  // Initialize processedTipIdsRef with ALL completed tips (full history) so old tips do NOT trigger notifications again.
   useEffect(() => {
-    if (!creator || !transactions.length || initializedRef.current) return;
-    const completedTips = transactions.filter(t => t.transaction_type === 'tip' && t.status === 'completed');
+    if (!creator || !performanceTransactions.length || initializedRef.current) return;
+    const completedTips = performanceTransactions.filter(t => t.transaction_type === 'tip' && t.status === 'completed');
     for (const tip of completedTips) {
       const key = getTipKey(tip);
-      if (key) {
-        processedTipIdsRef.current.add(key);
-      }
+      if (key) processedTipIdsRef.current.add(key);
     }
     initializedRef.current = true;
-  }, [creator, transactions, getTipKey]);
+  }, [creator, performanceTransactions, getTipKey]);
 
   // Load initial dashboard data (user, creator profile, recent transactions)
   async function loadDashboardData() {
@@ -96,7 +94,8 @@ export default function CreatorDashboard() {
         // This avoids the bug where adding a new tip pushes an old tip out of the 50-item list,
         // which made that old day's total appear to “decrease”.
         try {
-          const longHistory = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 1000);
+          // Fetch full history for performance chart (no truncation)
+          const longHistory = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 'all');
           setPerformanceTransactions(longHistory);
         } catch (e) {
           // If large fetch fails, fall back to recent list to at least show some data
@@ -132,6 +131,9 @@ export default function CreatorDashboard() {
     // (Optional) hide pending tips from list: uncomment to suppress
     // if (tip.status === 'pending') return;
     const k = getTipKey(tip);
+    // NOTE: We now keep a full history (limit=all). For very large creators (tens of thousands of tips)
+    // you may want to switch to a backend aggregation endpoint that returns pre-summed buckets
+    // instead of sending every row. This keeps things simple for now while app is early stage.
     // Update RECENT (capped)
     setTransactions(prev => {
       const exists = k ? prev.some(t => getTipKey(t) === k) : false;
@@ -161,7 +163,10 @@ export default function CreatorDashboard() {
     if (tip.status !== 'completed') return; // only apply completed tips
     const key = getTipKey(tip);
     if (!key) return;
-    if (processedTipIdsRef.current.has(key)) return;
+    if (processedTipIdsRef.current.has(key)) return; // already applied
+    // If the tip is HISTORICAL (created more than 2 minutes before page load), do not pulse or notify again.
+    const createdTs = new Date(tip.created_date || Date.now()).getTime();
+    const recentCutoff = Date.now() - 2 * 60 * 1000; // 2 minutes window counts as "new"
     const amt = Number(tip.amount || 0) || 0;
     if (!(amt > 0)) return;
     processedTipIdsRef.current.add(key);
@@ -173,10 +178,12 @@ export default function CreatorDashboard() {
         available_balance: (prev.available_balance || 0) + amt,
       };
     });
-    if (import.meta.env.DEV) console.debug('[balance] applied tip locally', { key, amt });
-    setBalancePulse(true);
-    setTimeout(() => setBalancePulse(false), 1200);
-    showCompletedTipNotification(tip);
+    if (import.meta.env.DEV) console.debug('[balance] applied tip locally', { key, amt, historical: createdTs < recentCutoff });
+    if (createdTs >= recentCutoff) {
+      setBalancePulse(true);
+      setTimeout(() => setBalancePulse(false), 1200);
+      showCompletedTipNotification(tip);
+    }
   };
 
   // Show a completion notification
@@ -188,29 +195,37 @@ export default function CreatorDashboard() {
       message: tip.message || ''
     };
     setCompletedTipNotification(notification);
-    
-    // Auto dismiss after 5 seconds
-    setTimeout(() => {
-      setCompletedTipNotification(null);
-    }, 5000);
+    setTimeout(() => setCompletedTipNotification(null), 5000);
   };
 
-  // Subscribe to in-app bus
+  // Detect status transitions (pending -> completed) AFTER initial historical set is registered
   useEffect(() => {
-    const off = RealtimeBus.on("transaction:tip", (tip) => {
-      if (!creator || String(tip.creator_id) !== String(creator.id)) return;
-      addIncomingTip(tip);
-      applyTipToCreator(tip);
-    });
-    return off;
-  }, [creator]);
-
-  // Subscribe to BroadcastChannel for cross-tab tips and always add a storage fallback
+    if (!creator || !initializedRef.current) return;
+    const map = txStatusByKeyRef.current;
+    for (const t of performanceTransactions) {
+      if (!t || t.transaction_type !== 'tip') continue;
+      const key = getTipKey(t);
+      if (!key) continue;
+      const prev = map.get(key);
+      if (t.status === 'completed') {
+        if (prev !== 'completed' && !processedTipIdsRef.current.has(key)) {
+          // Newly completed tip (not historical duplicate) → apply
+          applyTipToCreator(t);
+        }
+        map.set(key, 'completed');
+      } else {
+        map.set(key, t.status);
+      }
+    }
+  }, [performanceTransactions, creator, getTipKey]);
+  
+  // Subscribe to BroadcastChannel + storage events (was malformed after previous edit – restored)
   useEffect(() => {
+    if (!creator) return;
     let bc;
     const onMsg = (e) => {
       const { type, payload } = e.data || {};
-      if (type === "transaction:tip" && payload && creator && String(payload.creator_id) === String(creator.id)) {
+      if (type === "transaction:tip" && payload && String(payload.creator_id) === String(creator.id)) {
         addIncomingTip(payload);
         applyTipToCreator(payload);
       }
@@ -225,7 +240,7 @@ export default function CreatorDashboard() {
       try {
         const parsed = JSON.parse(e.newValue || '{}');
         const tip = parsed.tip;
-        if (tip && creator && String(tip.creator_id) === String(creator.id)) {
+        if (tip && String(tip.creator_id) === String(creator.id)) {
           addIncomingTip(tip);
           applyTipToCreator(tip);
         }
@@ -237,7 +252,7 @@ export default function CreatorDashboard() {
       if (bc) bc.removeEventListener('message', onMsg);
       window.removeEventListener('storage', onStorage);
     };
-  }, [creator]);
+  }, [creator, addIncomingTip]);
 
   // =============================================================
   // SSE HEALTH STATE (for smarter, low-resource fallback polling)
@@ -271,7 +286,7 @@ export default function CreatorDashboard() {
         const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
         setTransactions(latest);
         try {
-          const longHistory = await Transaction.filter({ creator_id: creator.id }, '-created_date', 1000);
+          const longHistory = await Transaction.filter({ creator_id: creator.id }, '-created_date', 'all');
           setPerformanceTransactions(longHistory);
         } catch {}
         consecutiveFailures = 0; // Reset failure count on success
@@ -390,7 +405,7 @@ export default function CreatorDashboard() {
               const latest = await Transaction.filter({ creator_id: creator.id }, '-created_date', 50);
               setTransactions(latest);
               try {
-                const longHistory = await Transaction.filter({ creator_id: creator.id }, '-created_date', 1000);
+                const longHistory = await Transaction.filter({ creator_id: creator.id }, '-created_date', 'all');
                 setPerformanceTransactions(longHistory);
               } catch {}
             } catch {}

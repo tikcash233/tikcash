@@ -416,7 +416,11 @@ app.get('/api/creators/:id', async (req, res, next) => {
 app.get('/api/creators/:id/transactions', async (req, res, next) => {
   try {
     const id = z.string().uuid().parse(req.params.id);
-    const list = await listTransactionsForCreator(id, { limit: Number(req.query.limit) || 50 });
+    let limit = 50;
+    const rawLimit = req.query.limit;
+    if (rawLimit === 'all') limit = 'all';
+    else if (!isNaN(Number(rawLimit))) limit = Number(rawLimit) || 50;
+    const list = await listTransactionsForCreator(id, { limit });
     // cast numeric amount
     const normalized = list.map(r => ({ ...r, amount: r.amount != null ? Number(r.amount) : r.amount }));
     res.json(normalized);

@@ -104,7 +104,7 @@ export const Transaction = {
   async filter(criteria = {}, sortField = null, limit = null) {
     if (criteria.creator_id) {
       const qs = new URLSearchParams();
-      if (limit) qs.set('limit', String(limit));
+      if (limit) qs.set('limit', String(limit)); // allow 'all'
       const list = await fetchJson(`/api/creators/${criteria.creator_id}/transactions?${qs.toString()}`);
       let out = list;
       if (sortField) out = sortByField(out, sortField);
