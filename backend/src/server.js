@@ -80,9 +80,9 @@ app.use((req, res, next) => {
 });
 
 if (process.env.NODE_ENV !== 'production') {
-  // Log only problematic requests (status >= 400)
+  // Log only problematic requests (status >= 400, but skip expected 401s for cleaner dev logs)
   app.use(morgan('dev', {
-    skip: (req, res) => res.statusCode < 400,
+    skip: (req, res) => res.statusCode < 400 || res.statusCode === 401,
   }));
 }
 
@@ -741,7 +741,7 @@ app.get('/openapi.json', (req, res) => {
       const page = Number(req.query.page || '1');
       const limit = Number(req.query.limit || '24');
       const data = await listCreatorsSupportedByUser(req.user.sub, { page, limit });
-      res.json({ data, page, pageSize: limit });
+      res.json({ data, page, pageSize: limit, hasMore: Array.isArray(data) ? data.length >= limit : false });
     } catch (e) { next(e); }
   });
 });

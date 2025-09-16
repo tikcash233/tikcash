@@ -89,7 +89,7 @@ export const Creator = {
     const list = await fetchJson(`/api/creators?${qs.toString()}`);
     return limit ? list.slice(0, limit) : list;
   },
-  async search(q, { page = 1, limit = 24 } = {}) {
+  async search(q, { page = 1, limit = 10 } = {}) {
     const qs = new URLSearchParams();
     if (q != null) qs.set('q', String(q));
     qs.set('page', String(page));

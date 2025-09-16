@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Creator, Transaction, User } from "@/entities/all";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, ArrowUp } from "lucide-react";
 
 import CreatorCard from "../components/supporter/CreatorCard";
 import TipModal from "../components/supporter/TipModal";
@@ -20,6 +20,7 @@ export default function SupporterDashboard() {
   const [isSearching, setIsSearching] = useState(false);
   const [user, setUser] = useState(null);
   const [showingSearchResults, setShowingSearchResults] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -29,6 +30,17 @@ export default function SupporterDashboard() {
     })();
   }, []);
 
+  // Show/hide scroll-to-top button based on scroll position
+  useEffect(() => {
+    const onScroll = () => {
+      try { setShowScrollTop(window.scrollY > 300); } catch {}
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    // Initialize visibility on mount
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const loadCreators = async (nextPage = 1, replace = false) => {
     try {
       setIsLoading(true);
@@ -36,7 +48,7 @@ export default function SupporterDashboard() {
       const list = Array.isArray(data?.data) ? data.data : [];
       setCreators((prev) => replace ? list : [...prev, ...list]);
       setPage(nextPage);
-      setHasMore(list.length >= (data?.pageSize || 24));
+      setHasMore(Boolean(data?.hasMore ?? (list.length >= (data?.pageSize || 24))));
     } catch (error) {
       console.error("Error loading creators:", error);
     } finally {
@@ -52,12 +64,12 @@ export default function SupporterDashboard() {
     }
     
     try {
-      setIsSearching(true);
-  const data = await Creator.search(query.trim(), { page: nextPage, limit: 24 });
+    setIsSearching(true);
+      const data = await Creator.search(query.trim(), { page: nextPage, limit: 10 });
       const list = Array.isArray(data?.data) ? data.data : [];
       setSearchResults((prev) => replace ? list : [...prev, ...list]);
       setSearchPage(nextPage);
-      setSearchHasMore(list.length >= (data?.pageSize || 24));
+      setSearchHasMore(Boolean(data?.hasMore ?? (list.length >= (data?.pageSize || 10))));
       setShowingSearchResults(true);
     } catch (error) {
       console.error("Error searching creators:", error);
@@ -286,7 +298,22 @@ export default function SupporterDashboard() {
             onClose={() => setSelectedCreator(null)}
           />
         )}
+        {showScrollTop && (
+          <button
+            aria-label="Back to top"
+            onClick={scrollToTopSmooth}
+            className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-red-600 text-white shadow-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 px-4 py-3"
+          >
+            <ArrowUp className="w-5 h-5" />
+            <span className="hidden sm:inline">Top</span>
+          </button>
+        )}
       </div>
     </div>
   );
+}
+
+// Smooth scroll helper (in case browsers lacking smooth behavior)
+function scrollToTopSmooth() {
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { window.scrollTo(0, 0); }
 }
