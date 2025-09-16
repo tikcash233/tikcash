@@ -302,10 +302,9 @@ export default function SupporterDashboard() {
           <button
             aria-label="Back to top"
             onClick={scrollToTopSmooth}
-            className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-red-600 text-white shadow-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 px-4 py-3"
+            className="fixed bottom-6 right-6 md:bottom-8 md:right-8 h-12 w-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-colors"
           >
             <ArrowUp className="w-5 h-5" />
-            <span className="hidden sm:inline">Top</span>
           </button>
         )}
       </div>
