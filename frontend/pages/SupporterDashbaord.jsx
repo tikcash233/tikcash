@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Creator, Transaction } from "@/entities/all";
+import { Creator, Transaction, User } from "@/entities/all";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 
@@ -9,49 +9,89 @@ import SearchFilters from "../components/supporter/SearchFilters";
 
 export default function SupporterDashboard() {
   const [creators, setCreators] = useState([]);
-  const [filteredCreators, setFilteredCreators] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
   const [selectedCreator, setSelectedCreator] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [page, setPage] = useState(1);
+  const [searchPage, setSearchPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [searchHasMore, setSearchHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [user, setUser] = useState(null);
+  const [showingSearchResults, setShowingSearchResults] = useState(false);
 
   useEffect(() => {
-    loadCreators();
+    (async () => {
+      const me = await User.me();
+      setUser(me);
+      await loadCreators(1, true);
+    })();
   }, []);
 
-  const filterCreators = useCallback(() => {
-    let filtered = creators;
-
-    // Filter by search query
-    if (searchQuery) {
-      filtered = filtered.filter(creator => 
-        creator.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        creator.tiktok_username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        creator.bio?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Filter by category
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(creator => creator.category === selectedCategory);
-    }
-
-    setFilteredCreators(filtered);
-  }, [creators, searchQuery, selectedCategory]);
-
-  useEffect(() => {
-    filterCreators();
-  }, [filterCreators]);
-
-  const loadCreators = async () => {
+  const loadCreators = async (nextPage = 1, replace = false) => {
     try {
-      const creatorList = await Creator.list('-total_earnings');
-      setCreators(creatorList);
+      setIsLoading(true);
+      const qs = new URLSearchParams({ page: String(nextPage), limit: '24' });
+      const res = await fetch(`/api/me/creators?${qs.toString()}`, { headers: { ...((() => { try { const t = localStorage.getItem('tikcash_token'); return t ? { Authorization: `Bearer ${t}` } : {}; } catch { return {}; } })()) } });
+      if (res.status === 401) { setCreators([]); setHasMore(false); return; }
+      const data = await res.json();
+      const list = Array.isArray(data?.data) ? data.data : [];
+      setCreators((prev) => replace ? list : [...prev, ...list]);
+      setPage(nextPage);
+      setHasMore(list.length >= (data?.pageSize || 24));
     } catch (error) {
       console.error("Error loading creators:", error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const searchCreators = async (query, nextPage = 1, replace = false) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowingSearchResults(false);
+      return;
+    }
+    
+    try {
+      setIsSearching(true);
+      const qs = new URLSearchParams({ q: query.trim(), page: String(nextPage), limit: '24' });
+      const res = await fetch(`/api/creators/search?${qs.toString()}`);
+      const data = await res.json();
+      const list = Array.isArray(data?.data) ? data.data : [];
+      setSearchResults((prev) => replace ? list : [...prev, ...list]);
+      setSearchPage(nextPage);
+      setSearchHasMore(list.length >= (data?.pageSize || 24));
+      setShowingSearchResults(true);
+    } catch (error) {
+      console.error("Error searching creators:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        searchCreators(searchQuery, 1, true);
+      } else {
+        setSearchResults([]);
+        setShowingSearchResults(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowingSearchResults(false);
   };
 
   const handleSendTip = async (tipData) => {
@@ -67,7 +107,9 @@ export default function SupporterDashboard() {
       });
 
       setSelectedCreator(null);
-      await loadCreators();
+      
+      // Refresh the supported creators list to include the new creator
+      await loadCreators(1, true);
       
       return { success: true };
     } catch (error) {
@@ -104,7 +146,7 @@ export default function SupporterDashboard() {
         </div>
 
         {/* Top Creators Spotlight */}
-        {topCreators.length > 0 && (
+        {!showingSearchResults && topCreators.length > 0 && (
           <div className="mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
               🌟 Top Earning Creators
@@ -123,52 +165,123 @@ export default function SupporterDashboard() {
           </div>
         )}
 
-        {/* Search and Filters */}
+        {/* Search helper */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
               <Input
-                placeholder="Search creators by name or username..."
+                placeholder="Search creators by @username or display name..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
                 className="pl-10 py-3"
               />
+              {searchQuery && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </div>
-          
-          <SearchFilters
-            selectedCategory={selectedCategory}
-            onCategoryChange={setSelectedCategory}
-          />
         </div>
 
-        {/* All Creators Grid */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            All Creators ({filteredCreators.length})
-          </h2>
-          
-          {filteredCreators.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredCreators.map((creator) => (
-                <CreatorCard
-                  key={creator.id}
-                  creator={creator}
-                  onTip={() => setSelectedCreator(creator)}
-                />
-              ))}
+        {/* Search Results */}
+        {showingSearchResults && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Search Results ({searchResults.length})
+              </h2>
+              <button
+                onClick={clearSearch}
+                className="text-red-600 hover:text-red-700 font-medium"
+              >
+                Clear search
+              </button>
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No creators found</h3>
-              <p className="text-gray-600">
-                Try adjusting your search or filter criteria
-              </p>
-            </div>
-          )}
-        </div>
+            {isSearching && searchResults.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2">Searching...</p>
+              </div>
+            ) : searchResults.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {searchResults.map((creator) => (
+                    <CreatorCard
+                      key={creator.id}
+                      creator={creator}
+                      onTip={() => setSelectedCreator(creator)}
+                    />
+                  ))}
+                </div>
+                {searchHasMore && (
+                  <div className="mt-6 flex justify-center">
+                    <button
+                      onClick={() => searchCreators(searchQuery, searchPage + 1)}
+                      className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+                      disabled={isSearching}
+                    >
+                      {isSearching ? 'Loading...' : 'Load more'}
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No creators found</h3>
+                <p className="text-gray-600">
+                  Try a different search term or check the spelling.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* My Creators */}
+        {!showingSearchResults && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              My Creators ({creators.length})
+            </h2>
+            {creators.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {creators.map((creator) => (
+                    <CreatorCard
+                      key={creator.id}
+                      creator={creator}
+                      onTip={() => setSelectedCreator(creator)}
+                    />
+                  ))}
+                </div>
+                {hasMore && (
+                  <div className="mt-6 flex justify-center">
+                    <button
+                      onClick={() => loadCreators(page + 1)}
+                      className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Loading...' : 'Load more'}
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">You haven't supported any creators yet</h3>
+                <p className="text-gray-600 mb-4">
+                  Use the search above to find creators by their @username or display name.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tip Modal */}
         {selectedCreator && (

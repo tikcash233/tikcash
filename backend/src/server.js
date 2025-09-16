@@ -11,7 +11,7 @@ import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, Regi
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
-import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip, getByIdempotency, attachAuthorizationUrl, expireOldPendingTips } from './models/transactions.js';
+import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip, getByIdempotency, attachAuthorizationUrl, expireOldPendingTips, listCreatorsSupportedByUser } from './models/transactions.js';
 import { initializePaystackTransaction } from './payments/paystack.js';
 import { txEvents, emitTransactionEvent } from './events.js';
 import crypto from 'node:crypto';
@@ -412,6 +412,62 @@ app.get('/api/creators/:id', async (req, res, next) => {
   }
 });
 
+// My supported creators (requires auth)
+app.get('/api/me/creators', authRequired, async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 24;
+    const list = await listCreatorsSupportedByUser(req.user.sub, { page, limit });
+    res.json({
+      data: list,
+      page,
+      pageSize: limit,
+      hasMore: list.length >= limit
+    });
+  } catch (e) { 
+    if (e.isNetworkError || e.message === 'DATABASE_OFFLINE' || e.message === 'DATABASE_CIRCUIT_OPEN') {
+      return res.status(503).json({ 
+        error: 'Service temporarily unavailable', 
+        message: 'Database connection lost. Please try again later.',
+        retryAfter: 30 
+      });
+    }
+    next(e); 
+  }
+});
+
+// Creator search (public endpoint)
+app.get('/api/creators/search', async (req, res, next) => {
+  try {
+    const { q, page = 1, limit = 24 } = req.query;
+    if (!q || q.trim().length < 2) {
+      return res.json({ data: [], page: parseInt(page), pageSize: parseInt(limit), hasMore: false });
+    }
+    const searchTerm = q.trim();
+    const list = await listCreators({ search: searchTerm, sort: '-total_earnings' });
+    // Simple pagination on the result (since listCreators has a 200 limit)
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const start = (pageNum - 1) * limitNum;
+    const paginatedResults = list.slice(start, start + limitNum);
+    res.json({
+      data: paginatedResults,
+      page: pageNum,
+      pageSize: limitNum,
+      hasMore: start + limitNum < list.length
+    });
+  } catch (e) { 
+    if (e.isNetworkError || e.message === 'DATABASE_OFFLINE' || e.message === 'DATABASE_CIRCUIT_OPEN') {
+      return res.status(503).json({ 
+        error: 'Service temporarily unavailable', 
+        message: 'Database connection lost. Please try again later.',
+        retryAfter: 30 
+      });
+    }
+    next(e); 
+  }
+});
+
 // Transactions
 app.get('/api/creators/:id/transactions', async (req, res, next) => {
   try {
@@ -440,6 +496,16 @@ app.get('/api/creators/:id/transactions', async (req, res, next) => {
 app.post('/api/transactions', async (req, res, next) => {
   try {
     const data = TransactionCreateSchema.parse(req.body);
+    // Attach supporter_user_id if authenticated
+    const header = req.headers.authorization || '';
+    let supporterUserId = null;
+    const token = header.startsWith('Bearer ')
+      ? header.slice(7)
+      : (req.cookies?.token || null);
+    if (token) {
+      try { const dec = jwt.verify(token, JWT_SECRET); supporterUserId = dec?.sub || null; } catch {}
+    }
+    if (supporterUserId) data.supporter_user_id = supporterUserId;
     // For tips/withdrawals, apply balance updates atomically
   const created = await createTipAndApply(data);
   const normalized = { ...created, amount: created.amount != null ? Number(created.amount) : created.amount };
@@ -474,6 +540,16 @@ app.post('/api/payments/paystack/initiate', async (req, res, next) => {
 
     // STEP 2: Create new pending transaction row first (so webhook can complete it later) with idempotency key.
     const reference = 'TIP_' + crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+    // Attach supporter_user_id if authenticated
+    let supporterUserId = null;
+    try {
+      const header = req.headers.authorization || '';
+      const token = header.startsWith('Bearer ')
+        ? header.slice(7)
+        : (req.cookies?.token || null);
+      if (token) { const dec = jwt.verify(token, JWT_SECRET); supporterUserId = dec?.sub || null; }
+    } catch {}
+
     const pendingTx = await createTransaction({
       creator_id,
       supporter_name: supporter_name || null,
@@ -483,6 +559,7 @@ app.post('/api/payments/paystack/initiate', async (req, res, next) => {
       status: 'pending',
       payment_reference: reference,
       idempotency_key: idem,
+      supporter_user_id: supporterUserId || null,
     });
     emitTransactionEvent(pendingTx);
 
@@ -654,6 +731,16 @@ app.get('/openapi.json', (req, res) => {
         post: { summary: "Change password (logged in)", requestBody: {}, responses: { "200": { description: "OK" } } }
       }
     }
+  });
+
+  // List creators the current supporter has supported (distinct), ordered by last tip date
+  app.get('/api/me/creators', authRequired, async (req, res, next) => {
+    try {
+      const page = Number(req.query.page || '1');
+      const limit = Number(req.query.limit || '24');
+      const data = await listCreatorsSupportedByUser(req.user.sub, { page, limit });
+      res.json({ data, page, pageSize: limit });
+    } catch (e) { next(e); }
   });
 });
 

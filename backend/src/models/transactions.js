@@ -1,5 +1,6 @@
 import { query, withTransaction } from '../db.js';
 import { emitTransactionEvent } from '../events.js';
+import { parseNumericFields } from '../utils.js';
 
 export async function listTransactionsForCreator(creatorId, { limit = 50, includeExpired = false } = {}) {
   // If limit is null or the string 'all', return full history (no LIMIT clause)
@@ -23,7 +24,7 @@ export async function listTransactionsForCreator(creatorId, { limit = 50, includ
 }
 
 export async function createTransaction(data) {
-  const fields = ['creator_id','supporter_name','amount','message','transaction_type','status','payment_reference','momo_number','idempotency_key','paystack_authorization_url'];
+  const fields = ['creator_id','supporter_name','amount','message','transaction_type','status','payment_reference','momo_number','idempotency_key','paystack_authorization_url','supporter_user_id'];
   const cols = [];
   const vals = [];
   const params = [];
@@ -84,9 +85,9 @@ export async function createTipAndApply(data) {
 
     const status = data.status || (data.transaction_type === 'tip' ? 'completed' : 'pending');
     const txRes = await client.query(
-      `INSERT INTO transactions(creator_id, supporter_name, amount, message, transaction_type, status, payment_reference, momo_number)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [data.creator_id, data.supporter_name || null, data.amount, data.message || null, data.transaction_type, status, data.payment_reference || null, data.momo_number || null]
+      `INSERT INTO transactions(creator_id, supporter_name, amount, message, transaction_type, status, payment_reference, momo_number, supporter_user_id)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [data.creator_id, data.supporter_name || null, data.amount, data.message || null, data.transaction_type, status, data.payment_reference || null, data.momo_number || null, data.supporter_user_id || null]
     );
     const tx = txRes.rows[0];
 
@@ -130,6 +131,33 @@ export async function completePendingTip(reference, amount) {
   emitTransactionEvent(finalTx);
   return finalTx;
   });
+}
+
+// Fetch creators supported by a specific user (from their successful transactions)
+export async function listCreatorsSupportedByUser(userId, { page = 1, limit = 24 } = {}) {
+  const offset = (page - 1) * limit;
+  const res = await query(
+    `SELECT 
+        c.id,
+        c.tiktok_username,
+        c.display_name,
+        c.profile_image,
+        c.bio,
+        c.category,
+        MAX(t.created_date) AS last_supported_at,
+        COUNT(t.id) AS support_count,
+        SUM(t.amount) AS total_supported
+     FROM creators c
+     INNER JOIN transactions t ON c.id = t.creator_id
+     WHERE t.supporter_user_id = $1 
+       AND t.status = 'completed' 
+       AND t.transaction_type = 'tip'
+     GROUP BY c.id, c.tiktok_username, c.display_name, c.profile_image, c.bio, c.category
+     ORDER BY last_supported_at DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, limit, offset]
+  );
+  return res.rows.map(r => parseNumericFields(r, ['total_supported']));
 }
 
 // Cleanup function to mark old pending tips as expired/cancelled
