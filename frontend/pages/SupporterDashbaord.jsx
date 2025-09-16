@@ -32,10 +32,7 @@ export default function SupporterDashboard() {
   const loadCreators = async (nextPage = 1, replace = false) => {
     try {
       setIsLoading(true);
-      const qs = new URLSearchParams({ page: String(nextPage), limit: '24' });
-      const res = await fetch(`/api/me/creators?${qs.toString()}`, { headers: { ...((() => { try { const t = localStorage.getItem('tikcash_token'); return t ? { Authorization: `Bearer ${t}` } : {}; } catch { return {}; } })()) } });
-      if (res.status === 401) { setCreators([]); setHasMore(false); return; }
-      const data = await res.json();
+      const data = await User.myCreators({ page: nextPage, limit: 24 });
       const list = Array.isArray(data?.data) ? data.data : [];
       setCreators((prev) => replace ? list : [...prev, ...list]);
       setPage(nextPage);
@@ -56,9 +53,7 @@ export default function SupporterDashboard() {
     
     try {
       setIsSearching(true);
-      const qs = new URLSearchParams({ q: query.trim(), page: String(nextPage), limit: '24' });
-      const res = await fetch(`/api/creators/search?${qs.toString()}`);
-      const data = await res.json();
+  const data = await Creator.search(query.trim(), { page: nextPage, limit: 24 });
       const list = Array.isArray(data?.data) ? data.data : [];
       setSearchResults((prev) => replace ? list : [...prev, ...list]);
       setSearchPage(nextPage);

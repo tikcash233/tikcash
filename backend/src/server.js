@@ -394,6 +394,38 @@ app.patch('/api/creators/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Creator search (public endpoint) — must be before /:id to avoid route capture
+app.get('/api/creators/search', async (req, res, next) => {
+  try {
+    const { q, page = 1, limit = 24 } = req.query;
+    if (!q || q.trim().length < 2) {
+      return res.json({ data: [], page: parseInt(page), pageSize: parseInt(limit), hasMore: false });
+    }
+    const searchTerm = q.trim();
+    const list = await listCreators({ search: searchTerm, sort: '-total_earnings' });
+    // Simple pagination on the result (since listCreators has a 200 limit)
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const start = (pageNum - 1) * limitNum;
+    const paginatedResults = list.slice(start, start + limitNum);
+    res.json({
+      data: paginatedResults,
+      page: pageNum,
+      pageSize: limitNum,
+      hasMore: start + limitNum < list.length
+    });
+  } catch (e) { 
+    if (e.isNetworkError || e.message === 'DATABASE_OFFLINE' || e.message === 'DATABASE_CIRCUIT_OPEN') {
+      return res.status(503).json({ 
+        error: 'Service temporarily unavailable', 
+        message: 'Database connection lost. Please try again later.',
+        retryAfter: 30 
+      });
+    }
+    next(e); 
+  }
+});
+
 app.get('/api/creators/:id', async (req, res, next) => {
   try {
     const id = z.string().uuid().parse(req.params.id);
@@ -437,36 +469,6 @@ app.get('/api/me/creators', authRequired, async (req, res, next) => {
 });
 
 // Creator search (public endpoint)
-app.get('/api/creators/search', async (req, res, next) => {
-  try {
-    const { q, page = 1, limit = 24 } = req.query;
-    if (!q || q.trim().length < 2) {
-      return res.json({ data: [], page: parseInt(page), pageSize: parseInt(limit), hasMore: false });
-    }
-    const searchTerm = q.trim();
-    const list = await listCreators({ search: searchTerm, sort: '-total_earnings' });
-    // Simple pagination on the result (since listCreators has a 200 limit)
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const start = (pageNum - 1) * limitNum;
-    const paginatedResults = list.slice(start, start + limitNum);
-    res.json({
-      data: paginatedResults,
-      page: pageNum,
-      pageSize: limitNum,
-      hasMore: start + limitNum < list.length
-    });
-  } catch (e) { 
-    if (e.isNetworkError || e.message === 'DATABASE_OFFLINE' || e.message === 'DATABASE_CIRCUIT_OPEN') {
-      return res.status(503).json({ 
-        error: 'Service temporarily unavailable', 
-        message: 'Database connection lost. Please try again later.',
-        retryAfter: 30 
-      });
-    }
-    next(e); 
-  }
-});
 
 // Transactions
 app.get('/api/creators/:id/transactions', async (req, res, next) => {

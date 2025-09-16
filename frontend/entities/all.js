@@ -89,6 +89,14 @@ export const Creator = {
     const list = await fetchJson(`/api/creators?${qs.toString()}`);
     return limit ? list.slice(0, limit) : list;
   },
+  async search(q, { page = 1, limit = 24 } = {}) {
+    const qs = new URLSearchParams();
+    if (q != null) qs.set('q', String(q));
+    qs.set('page', String(page));
+    qs.set('limit', String(limit));
+    // Returns { data, page, pageSize, hasMore }
+    return await fetchJson(`/api/creators/search?${qs.toString()}`);
+  },
   async create(data) {
     return await fetchJson(`/api/creators`, { method: 'POST', body: JSON.stringify(data) });
   },
@@ -138,6 +146,13 @@ export const User = {
       if (msg.includes('HTTP 401') || msg.includes('HTTP 403')) return null;
       return null; // treat other failures as unauthenticated for guard simplicity
     }
+  },
+  async myCreators({ page = 1, limit = 24 } = {}) {
+    const qs = new URLSearchParams();
+    qs.set('page', String(page));
+    qs.set('limit', String(limit));
+    // Returns { data, page, pageSize, hasMore }
+    return await fetchJson(`/api/me/creators?${qs.toString()}`);
   },
   async register(payload) {
     // Send full payload so creator fields reach the backend for auto-creation
