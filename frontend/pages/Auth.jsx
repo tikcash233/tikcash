@@ -13,7 +13,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   // email verification removed
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState('supporter'); // supporter | creator
+  const [role, setRole] = useState('creator'); // Only creator
   // creator specific
   const [tiktokUsername, setTiktokUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -31,7 +31,7 @@ export default function Auth() {
     const m = params.get('mode');
     if (m === 'register' || m === 'login') setMode(m);
   const r = params.get('role');
-  if (r === 'creator' || r === 'supporter') setRole(r);
+  if (r === 'creator') setRole(r);
   }, [location.search]);
 
   const onSubmit = async (e) => {
@@ -42,14 +42,10 @@ export default function Auth() {
       // client-side validation
       const nextErrors = {};
       if (mode === 'register') {
-        if (role === 'supporter') {
-          if (!name.trim()) nextErrors.name = 'Please enter your name.';
-        } else if (role === 'creator') {
-          if (!tiktokUsername.trim()) nextErrors.tiktokUsername = 'TikTok username is required.';
-          if (!displayName.trim()) nextErrors.displayName = 'Display name is required.';
-          const ph = String(phone || '');
-          if (!/^\+233\d{9}$/.test(ph)) nextErrors.phone = 'Enter a valid Ghana number as +233 then 9 digits (e.g., +233241234567).';
-        }
+        if (!tiktokUsername.trim()) nextErrors.tiktokUsername = 'TikTok username is required.';
+        if (!displayName.trim()) nextErrors.displayName = 'Display name is required.';
+        const ph = String(phone || '');
+        if (!/^\+233\d{9}$/.test(ph)) nextErrors.phone = 'Enter a valid Ghana number as +233 then 9 digits (e.g., +233241234567).';
         if (!/^\d{4}$/.test(recoveryPin)) nextErrors.recoveryPin = 'Enter a 4-digit PIN.';
       }
       if (Object.keys(nextErrors).length) {
@@ -58,19 +54,17 @@ export default function Auth() {
       }
       setErrors({});
       if (mode === 'register') {
-        const u = await User.register({ email, password, name, role, 
-          ...(role === 'creator' ? {
-            tiktok_username: tiktokUsername,
-            display_name: displayName,
-            phone_number: phone,
-            preferred_payment_method: payment,
-            category,
-          } : {}),
+        const u = await User.register({ email, password, name, role: 'creator',
+          tiktok_username: tiktokUsername,
+          display_name: displayName,
+          phone_number: phone,
+          preferred_payment_method: payment,
+          category,
           recovery_pin: recoveryPin
         });
         // No email verification flow; go straight in
         success('Account created.');
-        navigate(role === 'creator' ? '/creator' : '/');
+        navigate('/creator');
       } else {
     await User.login({ email, password });
     // success('Logged in.'); // Removed notification
@@ -92,32 +86,18 @@ export default function Auth() {
   <form onSubmit={onSubmit} className="space-y-3">
           {mode === 'register' && (
             <>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Registering as</label>
-              <div className="flex gap-3">
-                <button type="button" onClick={()=>setRole('supporter')} className={`px-3 py-1.5 rounded-lg border ${role==='supporter'?'bg-blue-600 text-white border-blue-600':'bg-white text-gray-700 border-gray-300'}`}>Supporter</button>
-                <button type="button" onClick={()=>setRole('creator')} className={`px-3 py-1.5 rounded-lg border ${role==='creator'?'bg-blue-600 text-white border-blue-600':'bg-white text-gray-700 border-gray-300'}`}>Creator</button>
-              </div>
-            </div>
-            {role === 'supporter' && (
+            {/* Only creator registration allowed */}
+            <div className="space-y-3">
               <div>
-                <label className="block text-sm text-gray-700 mb-1">Name</label>
-                <Input value={name} onChange={(e)=>{ setName(e.target.value); if (errors.name) setErrors(prev=>({ ...prev, name: undefined })); }} placeholder="Your name" />
-                {errors.name && (<p className="text-sm text-red-600 mt-1">{errors.name}</p>)}
+                <label className="block text-sm text-gray-700 mb-1">TikTok Username</label>
+                <Input value={tiktokUsername} onChange={(e)=>{ setTiktokUsername(e.target.value); if (errors.tiktokUsername) setErrors(prev=>({ ...prev, tiktokUsername: undefined })); }} placeholder="e.g. kwesi_comedy" />
+                {errors.tiktokUsername && (<p className="text-sm text-red-600 mt-1">{errors.tiktokUsername}</p>)}
               </div>
-            )}
-            {role === 'creator' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">TikTok Username</label>
-                  <Input value={tiktokUsername} onChange={(e)=>{ setTiktokUsername(e.target.value); if (errors.tiktokUsername) setErrors(prev=>({ ...prev, tiktokUsername: undefined })); }} placeholder="e.g. kwesi_comedy" />
-                  {errors.tiktokUsername && (<p className="text-sm text-red-600 mt-1">{errors.tiktokUsername}</p>)}
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">Display Name</label>
-                  <Input value={displayName} onChange={(e)=>{ setDisplayName(e.target.value); if (errors.displayName) setErrors(prev=>({ ...prev, displayName: undefined })); }} placeholder="Your public name" />
-                  {errors.displayName && (<p className="text-sm text-red-600 mt-1">{errors.displayName}</p>)}
-                </div>
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Display Name</label>
+                <Input value={displayName} onChange={(e)=>{ setDisplayName(e.target.value); if (errors.displayName) setErrors(prev=>({ ...prev, displayName: undefined })); }} placeholder="Your public name" />
+                {errors.displayName && (<p className="text-sm text-red-600 mt-1">{errors.displayName}</p>)}
+              </div>
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">Phone Number</label>
                   <div className="flex">
@@ -149,7 +129,6 @@ export default function Auth() {
                 </div>
                 {/* Email verification text removed */}
               </div>
-            )}
             </>
           )}
           <div>

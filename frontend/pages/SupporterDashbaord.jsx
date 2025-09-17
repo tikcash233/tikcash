@@ -152,39 +152,7 @@ export default function SupporterDashboard() {
           </p>
         </div>
 
-        {/* Account Options Banner */}
-        {!user && (
-          <div className="mb-8">
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 mx-auto max-w-4xl">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Eye className="w-6 h-6 text-blue-600" />
-                    </div>
-                  </div>
-                  <div className="text-center md:text-left">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                      Browse freely or create an account
-                    </h3>
-                    <p className="text-gray-600 text-sm">
-                      You can browse and tip creators without signing up, or create a free account to track your support history
-                    </p>
-                  </div>
-                </div>
-                <div className="flex-shrink-0">
-                  <a 
-                    href="/auth?mode=register&role=supporter"
-                    className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-sm"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Create Account
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Removed supporter account options banner */}
 
         {/* Top Creators Spotlight */}
         {!showingSearchResults && topCreators.length > 0 && (
