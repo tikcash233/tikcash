@@ -65,11 +65,6 @@ export default function ShareLinkBar({ creator }) {
             <Button type="button" onClick={nativeShare} className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap">
               <Share2 className="w-4 h-4 mr-2" /> Share
             </Button>
-            <a href={shareUrl} target="_blank" rel="noreferrer">
-              <Button type="button" variant="outline" className="whitespace-nowrap">
-                <ExternalLink className="w-4 h-4 mr-2" /> Open
-              </Button>
-            </a>
           </div>
         </div>
       </CardContent>
