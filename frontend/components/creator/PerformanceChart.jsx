@@ -81,8 +81,8 @@ export default function PerformanceChart({ transactions = [] }) {
 	
 	// Controls
 	const [granularity, setGranularity] = useState("day"); // 'day' | 'week' | 'month'
-	// Added 'all' option for day granularity (previously only 7d/30d)
-	const [rangeKey, setRangeKey] = useState("30d"); // day: 7d/30d/all, week: 12w/all, month: 12m/all
+	// Default to 7d instead of 30d
+	const [rangeKey, setRangeKey] = useState("7d"); // day: 7d/30d/all, week: 12w/all, month: 12m/all
 	const [activeOnly, setActiveOnly] = useState(false);
 	const [hoverX, setHoverX] = useState(null);
 	const containerRef = useRef(null);
