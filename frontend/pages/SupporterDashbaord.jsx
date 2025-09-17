@@ -147,36 +147,24 @@ export default function SupporterDashboard() {
               TikTok Creators
             </span>
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Show love to creators by sending tips and supporting their amazing content
-          </p>
+         
         </div>
+    
 
-        {/* Removed supporter account options banner */}
-
-        {/* Top Creators Spotlight */}
-        {!showingSearchResults && topCreators.length > 0 && (
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-              🌟 Top Earning Creators
-            </h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              {topCreators.map((creator, index) => (
-                <CreatorCard
-                  key={creator.id}
-                  creator={creator}
-                  onTip={() => setSelectedCreator(creator)}
-                  rank={index + 1}
-                  isSpotlight={true}
-                />
-              ))}
+        {/* Info Banner for Supporters */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 mx-auto max-w-3xl flex flex-col md:flex-row items-center gap-6 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <Search className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">Find and Tip Creators</h3>
+                <p className="text-gray-600 text-sm">Use the search bar below to discover TikTok creators and send them your support instantly. No account needed!</p>
+              </div>
             </div>
           </div>
-        )}
-
-        {/* Search helper */}
-        <div className="mb-8">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="flex flex-col md:flex-row gap-4 mt-6">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
               <Input
@@ -251,46 +239,7 @@ export default function SupporterDashboard() {
           </div>
         )}
 
-        {/* My Creators */}
-        {!showingSearchResults && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              My Creators ({creators.length})
-            </h2>
-            {creators.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {creators.map((creator) => (
-                    <CreatorCard
-                      key={creator.id}
-                      creator={creator}
-                      onTip={() => setSelectedCreator(creator)}
-                    />
-                  ))}
-                </div>
-                {hasMore && (
-                  <div className="mt-6 flex justify-center">
-                    <button
-                      onClick={() => loadCreators(page + 1)}
-                      className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Loading...' : 'Load more'}
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-12">
-                <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">You haven't supported any creators yet</h3>
-                <p className="text-gray-600 mb-4">
-                  Use the search above to find creators by their @username or display name.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Removed My Creators section for supporters */}
 
         {/* Tip Modal */}
         {selectedCreator && (
