@@ -81,7 +81,7 @@ export default function PaymentResult() {
         <>
           <p className="mb-2 text-sm text-gray-500 break-all">Reference: {ref}</p>
           <p className="mb-6 font-medium capitalize">Status: {status}</p>
-          {status === 'completed' && <p className="text-green-600 mb-4">Tip recorded! You can close this page.</p>}
+          {status === 'completed' && <p className="text-green-600 mb-4">Tip Sent! You can close this page.</p>}
           {status === 'pending' && (
             <div className="mb-4 text-sm text-gray-600">
               <p className="mb-2">Waiting for confirmation… if this takes too long, click verify:</p>
