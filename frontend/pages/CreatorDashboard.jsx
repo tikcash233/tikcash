@@ -593,15 +593,7 @@ export default function CreatorDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
-        
-        {/* Offline Indicator */}
-        {isOffline && (
-          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4 text-center">
-            <span className="font-medium">⚠️ Connection issues detected</span>
-            <p className="text-sm mt-1">Data may not be up to date. Please check your internet connection.</p>
-          </div>
-        )}
-        
+                
         {/* Completed Tip Notification */}
         {completedTipNotification && (
           <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none">
