@@ -23,6 +23,7 @@ export default function App() {
           {/* Redirect legacy /browse to /support */}
           <Route path="/browse" element={<Navigate to="/support" replace />} />
           <Route path="/support" element={<WithLayout name="SupporterDashboard"><SupporterDashbaord /></WithLayout>} />
+          <Route path="/:username" element={<WithLayout name="SupporterDashboard"><SupporterDashbaord /></WithLayout>} />
           <Route path="/auth" element={<WithLayout name="Auth"><Auth /></WithLayout>} />
           <Route path="/reset" element={<WithLayout name="Reset"><Reset /></WithLayout>} />
           <Route path="/payment/result" element={<WithLayout name="PaymentResult"><PaymentResult /></WithLayout>} />

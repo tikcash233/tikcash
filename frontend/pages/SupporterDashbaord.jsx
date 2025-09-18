@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Creator, Transaction, User } from "@/entities/all";
 import { Input } from "@/components/ui/input";
 import { Search, ArrowUp, UserPlus, Eye } from "lucide-react";
@@ -8,6 +9,7 @@ import TipModal from "../components/supporter/TipModal";
 import SearchFilters from "../components/supporter/SearchFilters";
 
 export default function SupporterDashboard() {
+  const { username } = useParams();
   const [creators, setCreators] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedCreator, setSelectedCreator] = useState(null);
@@ -27,8 +29,12 @@ export default function SupporterDashboard() {
       const me = await User.me();
       setUser(me);
       await loadCreators(1, true);
+      // If username is present in URL, auto-search for that creator
+      if (username) {
+        setSearchQuery(username);
+      }
     })();
-  }, []);
+  }, [username]);
 
   // Show/hide scroll-to-top button based on scroll position
   useEffect(() => {
