@@ -19,8 +19,12 @@ import http from 'http';
 import { createClient } from '@supabase/supabase-js';
 import multer from 'multer';
 
-// Multer setup for file uploads
+// Load environment variables early so createClient can read them
+dotenv.config();
+
+// Multer setup for file uploads (use memoryStorage so req.file.buffer exists)
 const upload = multer({
+  storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
@@ -33,8 +37,6 @@ const upload = multer({
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-dotenv.config();
 
 // Activity tracking for smart resource management
 let lastActivityTime = Date.now();
@@ -791,23 +793,27 @@ app.post('/api/creators/upload-profile-picture', authRequired, upload.single('pr
     const userId = req.user.sub;
     const fileExt = req.file.originalname.split('.').pop();
     const fileName = `creator_${userId}_${Date.now()}.${fileExt}`;
+    // Store files under a per-user path to avoid collisions and allow easy cleanup
+    const filePath = `${userId}/${fileName}`;
     const { data, error } = await supabase.storage
       .from('profile-pictures')
-      .upload(fileName, req.file.buffer, {
+      .upload(filePath, req.file.buffer, {
         cacheControl: '3600',
         upsert: true,
         contentType: req.file.mimetype
       });
     if (error) return res.status(500).json({ error: error.message });
-    // Get public URL
-    const { data: publicUrlData } = supabase.storage
+
+    // Try to get a public URL first (works for public buckets)
+    const { data: publicUrlData, error: publicUrlErr } = await supabase.storage
       .from('profile-pictures')
-      .getPublicUrl(fileName);
-    const publicUrl = publicUrlData?.publicUrl;
-    if (!publicUrl) return res.status(500).json({ error: 'Failed to get public URL.' });
+      .getPublicUrl(filePath);
+      const publicUrl = publicUrlData?.publicUrl || publicUrlData?.publicURL || publicUrlData?.public_url;
+      if (!publicUrl) return res.status(500).json({ error: 'Failed to get public URL.' });
+
     // Update creator profile_image
-    await pool.query('UPDATE creators SET profile_image = $1 WHERE created_by = (SELECT email FROM users WHERE id = $2)', [publicUrl, userId]);
-    res.json({ url: publicUrl });
+      await pool.query('UPDATE creators SET profile_image = $1 WHERE created_by = (SELECT email FROM users WHERE id = $2)', [publicUrl, userId]);
+      res.json({ url: publicUrl });
   } catch (e) { next(e); }
 });
 
