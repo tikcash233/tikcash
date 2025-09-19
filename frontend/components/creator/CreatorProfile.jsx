@@ -82,7 +82,7 @@ export default function CreatorProfile({ onCreateProfile }) {
 				const res = await fetch("/api/creators/upload-profile-picture", {
 					method: "POST",
 					headers: {
-						Authorization: `Bearer ${localStorage.getItem("token")}`,
+            				Authorization: `Bearer ${localStorage.getItem("tikcash_token")}`,
 					},
 					body: formData,
 				});

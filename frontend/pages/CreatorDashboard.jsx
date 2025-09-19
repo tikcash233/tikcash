@@ -40,7 +40,7 @@ export default function CreatorDashboard() {
       formData.append('profile_picture', file);
       const res = await fetch('/api/creators/upload-profile-picture', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+  headers: { Authorization: `Bearer ${localStorage.getItem('tikcash_token')}` },
         body: formData,
       });
       const data = await res.json();
