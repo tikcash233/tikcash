@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import PenIcon from "../components/ui/PenIcon";
+import { ConfirmDialog } from "../components/ui/confirm.jsx";
 import { useNavigate } from "react-router-dom";
 import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,14 +62,28 @@ export default function CreatorDashboard() {
     if (f) handleFileUpload(f);
   };
 
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const handleRemovePhoto = async () => {
-    // UI-only removal. Call backend delete endpoint here if available.
+    setShowRemoveConfirm(true);
+  };
+  const confirmRemovePhoto = async () => {
     try {
-      if (tempPreviewRef.current) { URL.revokeObjectURL(tempPreviewRef.current); tempPreviewRef.current = null; }
-      setCreator(prev => ({ ...(prev||{}), profile_image: '' }));
-      toastSuccess('Profile picture removed.');
+      const res = await fetch('/api/creators/remove-profile-picture', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('tikcash_token')}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        if (tempPreviewRef.current) { URL.revokeObjectURL(tempPreviewRef.current); tempPreviewRef.current = null; }
+        setCreator(prev => ({ ...(prev||{}), profile_image: '' }));
+        toastSuccess('Profile picture removed.');
+      } else {
+        toastError(data.error || 'Failed to remove picture');
+      }
     } catch {
       toastError('Failed to remove picture');
+    } finally {
+      setShowRemoveConfirm(false);
     }
   };
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
@@ -709,15 +724,26 @@ export default function CreatorDashboard() {
                   <PenIcon size={22} color="#2563eb" />
                 </button>
                 {creator.profile_image && (
-                  <button
-                    type="button"
-                    onClick={handleRemovePhoto}
-                    className="absolute top-2 right-2 bg-red-50 text-red-600 rounded-full p-1 shadow hover:bg-red-100 text-xs"
-                    title="Remove photo"
-                    style={{ zIndex: 2 }}
-                  >
-                    ×
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="absolute top-2 right-2 bg-red-50 text-red-600 rounded-full p-1 shadow hover:bg-red-100 text-xs"
+                      title="Remove photo"
+                      style={{ zIndex: 2 }}
+                    >
+                      ×
+                    </button>
+                    <ConfirmDialog
+                      open={showRemoveConfirm}
+                      title="Remove profile picture?"
+                      description="Are you sure you want to remove your profile picture? This action cannot be undone."
+                      confirmText="Remove"
+                      cancelText="Cancel"
+                      onConfirm={confirmRemovePhoto}
+                      onCancel={() => setShowRemoveConfirm(false)}
+                    />
+                  </>
                 )}
               </div>
             </div>

@@ -463,29 +463,34 @@ app.get('/api/creators/:id', async (req, res, next) => {
   }
 });
 
-// My supported creators (requires auth)
-app.get('/api/me/creators', authRequired, async (req, res, next) => {
+
+// Remove profile picture endpoint
+// ...existing code...
+// Profile picture removal endpoint (after app initialization)
+app.post('/api/creators/remove-profile-picture', authRequired, async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 24;
-    const list = await listCreatorsSupportedByUser(req.user.sub, { page, limit });
-    res.json({
-      data: list,
-      page,
-      pageSize: limit,
-      hasMore: list.length >= limit
-    });
-  } catch (e) { 
-    if (e.isNetworkError || e.message === 'DATABASE_OFFLINE' || e.message === 'DATABASE_CIRCUIT_OPEN') {
-      return res.status(503).json({ 
-        error: 'Service temporarily unavailable', 
-        message: 'Database connection lost. Please try again later.',
-        retryAfter: 30 
-      });
+    const userId = req.user.sub;
+    // Get current profile image URL
+    const result = await pool.query('SELECT profile_image FROM creators WHERE created_by = (SELECT email FROM users WHERE id = $1)', [userId]);
+    const imageUrl = result.rows[0]?.profile_image;
+    if (!imageUrl) {
+      // No image to remove
+      await pool.query('UPDATE creators SET profile_image = NULL WHERE created_by = (SELECT email FROM users WHERE id = $1)', [userId]);
+      return res.json({ ok: true });
     }
-    next(e); 
-  }
+    // Extract path from public URL
+    const matches = imageUrl.match(/profile-pictures\/(.+)$/);
+    const filePath = matches ? matches[1] : null;
+    if (filePath) {
+      const { error } = await supabase.storage.from('profile-pictures').remove([filePath]);
+      if (error) return res.status(500).json({ error: error.message });
+    }
+    await pool.query('UPDATE creators SET profile_image = NULL WHERE created_by = (SELECT email FROM users WHERE id = $1)', [userId]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
 });
+
+
 
 // Creator search (public endpoint)
 
