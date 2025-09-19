@@ -737,11 +737,11 @@ export default function CreatorDashboard() {
                     <button
                       type="button"
                       onClick={handleRemovePhoto}
-                      className="absolute top-2 right-2 bg-red-50 text-red-600 rounded-full p-1 shadow hover:bg-red-100 text-xs"
+                      className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-red-100 transition-colors flex items-center justify-center"
                       title="Remove photo"
                       style={{ zIndex: 2 }}
                     >
-                      ×
+                      <span style={{ display: 'inline-block', width: 22, height: 22, color: '#dc2626', fontSize: 22, lineHeight: '22px', textAlign: 'center' }}>×</span>
                     </button>
                     <ConfirmDialog
                       open={showRemoveConfirm}
