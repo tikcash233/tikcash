@@ -16,6 +16,23 @@ import { initializePaystackTransaction } from './payments/paystack.js';
 import { txEvents, emitTransactionEvent } from './events.js';
 import crypto from 'node:crypto';
 import http from 'http';
+import { createClient } from '@supabase/supabase-js';
+import multer from 'multer';
+
+// Multer setup for file uploads
+const upload = multer({
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image files are allowed!'));
+    }
+    cb(null, true);
+  }
+});
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 dotenv.config();
 
@@ -764,6 +781,36 @@ app.use((err, req, res, _next) => {
   const status = err.status || 500;
   res.status(status).json({ error: err.message || 'Server error' });
 });
+
+
+
+// Profile picture upload endpoint (after app and middleware setup)
+app.post('/api/creators/upload-profile-picture', authRequired, upload.single('profile_picture'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    const userId = req.user.sub;
+    const fileExt = req.file.originalname.split('.').pop();
+    const fileName = `creator_${userId}_${Date.now()}.${fileExt}`;
+    const { data, error } = await supabase.storage
+      .from('profile-pictures')
+      .upload(fileName, req.file.buffer, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: req.file.mimetype
+      });
+    if (error) return res.status(500).json({ error: error.message });
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage
+      .from('profile-pictures')
+      .getPublicUrl(fileName);
+    const publicUrl = publicUrlData?.publicUrl;
+    if (!publicUrl) return res.status(500).json({ error: 'Failed to get public URL.' });
+    // Update creator profile_image
+    await pool.query('UPDATE creators SET profile_image = $1 WHERE created_by = (SELECT email FROM users WHERE id = $2)', [publicUrl, userId]);
+    res.json({ url: publicUrl });
+  } catch (e) { next(e); }
+});
+
 
 const basePort = Number(process.env.PORT || 5000);
 function startServer(port, attemptsLeft = 5) {

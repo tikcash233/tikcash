@@ -642,6 +642,30 @@ export default function CreatorDashboard() {
               alt={creator.display_name}
               className="w-16 h-16 rounded-full border-4 border-white shadow-lg"
             />
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const file = e.target.profile_picture.files[0];
+              if (!file) return;
+              const formData = new FormData();
+              formData.append("profile_picture", file);
+              const res = await fetch("/api/creators/upload-profile-picture", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem("token")}`,
+                },
+                body: formData,
+              });
+              const data = await res.json();
+              if (res.ok && data.url) {
+                setCreator((prev) => ({ ...prev, profile_image: data.url }));
+                toastSuccess("Profile picture updated.");
+              } else {
+                toastError(data.error || "Failed to update profile picture.");
+              }
+            }} className="flex flex-col items-start ml-4">
+              <input type="file" name="profile_picture" accept="image/*" className="mb-2" />
+              <Button type="submit" size="sm">Update Picture</Button>
+            </form>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Welcome back, {creator.display_name}!</h1>
               <p className="text-gray-600">@{creator.tiktok_username}</p>
