@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import PenIcon from "../components/ui/PenIcon";
 import { useNavigate } from "react-router-dom";
 import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
 import { Card, CardContent } from "@/components/ui/card";
@@ -685,21 +686,39 @@ export default function CreatorDashboard() {
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex flex-col items-center sm:items-start">
-              <img
-                src={creator.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.display_name)}&size=128&background=2563eb&color=ffffff`}
-                alt={creator.display_name}
-                className="w-28 h-28 sm:w-16 sm:h-16 rounded-full border-4 border-white shadow-lg"
-              />
-              <div className="mt-3 w-full sm:w-auto">
-                <input id="profile-upload-input" type="file" accept="image/*" className="hidden" onChange={onFileInputChange} />
-                <label htmlFor="profile-upload-input" className="block w-full text-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-full cursor-pointer touch-manipulation">
-                  Update photo
-                </label>
-                {creator.profile_image ? (
-                  <button type="button" onClick={handleRemovePhoto} className="block w-full mt-2 text-sm text-red-600 text-center sm:inline sm:w-auto sm:mt-0 sm:ml-2">
-                    Remove
+              <div className="relative w-28 h-28 sm:w-16 sm:h-16 flex items-center justify-center">
+                <img
+                  src={creator.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.display_name)}&size=128&background=2563eb&color=ffffff`}
+                  alt={creator.display_name}
+                  className="w-full h-full rounded-full border-4 border-white shadow-lg object-cover"
+                />
+                <input
+                  id="profile-upload-input"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onFileInputChange}
+                />
+                <button
+                  type="button"
+                  className="absolute bottom-2 right-2 sm:bottom-2 sm:right-2 bg-white rounded-full p-1 shadow-md hover:bg-blue-100 transition-colors flex items-center justify-center"
+                  title={creator.profile_image ? "Change or remove photo" : "Upload photo"}
+                  onClick={() => document.getElementById('profile-upload-input').click()}
+                  style={{ zIndex: 2 }}
+                >
+                  <PenIcon size={22} color="#2563eb" />
+                </button>
+                {creator.profile_image && (
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    className="absolute top-2 right-2 bg-red-50 text-red-600 rounded-full p-1 shadow hover:bg-red-100 text-xs"
+                    title="Remove photo"
+                    style={{ zIndex: 2 }}
+                  >
+                    ×
                   </button>
-                ) : null}
+                )}
               </div>
             </div>
 
