@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import PenIcon from "../components/ui/PenIcon";
+import ImageModal from "../components/ui/ImageModal";
 import { ConfirmDialog } from "../components/ui/confirm.jsx";
 import { useNavigate } from "react-router-dom";
 import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
@@ -26,6 +27,7 @@ export default function CreatorDashboard() {
   const { success: toastSuccess, error: toastError } = useToast();
   const tempPreviewRef = useRef(null);
   // Simple upload handler used by the "Update photo" button
+  const [showImageModal, setShowImageModal] = useState(false);
   const handleFileUpload = async (file) => {
     if (!file) return;
     const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -705,7 +707,14 @@ export default function CreatorDashboard() {
                 <img
                   src={creator.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.display_name)}&size=128&background=2563eb&color=ffffff`}
                   alt={creator.display_name}
-                  className="w-full h-full rounded-full border-4 border-white shadow-lg object-cover"
+                  className="w-full h-full rounded-full border-4 border-white shadow-lg object-cover cursor-pointer"
+                  onClick={() => setShowImageModal(true)}
+                />
+                <ImageModal
+                  open={showImageModal}
+                  src={creator.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.display_name)}&size=512&background=2563eb&color=ffffff`}
+                  alt={creator.display_name}
+                  onClose={() => setShowImageModal(false)}
                 />
                 <input
                   id="profile-upload-input"

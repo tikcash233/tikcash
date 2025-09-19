@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from "react";
+import ImageModal from "@/components/ui/ImageModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ export default function CreatorProfile({ onCreateProfile }) {
 	});
 	const [profileImage, setProfileImage] = useState(null);
 	const [previewUrl, setPreviewUrl] = useState(null);
+	const [showImageModal, setShowImageModal] = useState(false);
 
 	useEffect(() => {
 		(async () => {
@@ -126,7 +128,7 @@ export default function CreatorProfile({ onCreateProfile }) {
 					<div>
 						<label className="block text-sm font-medium text-gray-700">Profile Picture</label>
 						<div className="mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-							<div className="h-24 w-24 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
+							<div className="h-24 w-24 rounded-full bg-gray-100 overflow-hidden flex-shrink-0 cursor-pointer" onClick={() => previewUrl && setShowImageModal(true)}>
 								{previewUrl ? (
 									<img src={previewUrl} alt="Profile Preview" className="h-full w-full object-cover" />
 								) : (
@@ -136,6 +138,12 @@ export default function CreatorProfile({ onCreateProfile }) {
 										</svg>
 									</div>
 								)}
+								<ImageModal
+									open={showImageModal}
+									src={previewUrl}
+									alt="Profile Preview"
+									onClose={() => setShowImageModal(false)}
+								/>
 							</div>
 							<div className="flex-1 min-w-0">
 								<input id="creator-profile-file" type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e.target.files[0])} />
