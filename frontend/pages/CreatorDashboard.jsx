@@ -22,6 +22,54 @@ export default function CreatorDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const { success: toastSuccess, error: toastError } = useToast();
+  const tempPreviewRef = useRef(null);
+  // Simple upload handler used by the "Update photo" button
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+    const MAX_FILE_SIZE = 2 * 1024 * 1024;
+    if (!file.type.startsWith('image/')) { toastError('Only images allowed'); return; }
+    if (file.size > MAX_FILE_SIZE) { toastError('Image must be smaller than 2MB'); return; }
+    // show a local preview while uploading
+    const objUrl = URL.createObjectURL(file);
+    if (tempPreviewRef.current) URL.revokeObjectURL(tempPreviewRef.current);
+    tempPreviewRef.current = objUrl;
+    setCreator(prev => ({ ...(prev||{}), profile_image: objUrl }));
+    try {
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+      const res = await fetch('/api/creators/upload-profile-picture', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        if (tempPreviewRef.current) { URL.revokeObjectURL(tempPreviewRef.current); tempPreviewRef.current = null; }
+        setCreator(prev => ({ ...(prev||{}), profile_image: data.url }));
+        toastSuccess('Profile picture updated.');
+      } else {
+        toastError(data.error || 'Upload failed');
+      }
+    } catch (e) {
+      toastError('Network error while uploading');
+    }
+  };
+
+  const onFileInputChange = (e) => {
+    const f = e?.target?.files?.[0];
+    if (f) handleFileUpload(f);
+  };
+
+  const handleRemovePhoto = async () => {
+    // UI-only removal. Call backend delete endpoint here if available.
+    try {
+      if (tempPreviewRef.current) { URL.revokeObjectURL(tempPreviewRef.current); tempPreviewRef.current = null; }
+      setCreator(prev => ({ ...(prev||{}), profile_image: '' }));
+      toastSuccess('Profile picture removed.');
+    } catch {
+      toastError('Failed to remove picture');
+    }
+  };
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
   // (Legacy) safetySyncTimerRef removed: we now use a lightweight conditional fallback poll.
   const visibilityRef = useRef(document.visibilityState === 'visible');
@@ -633,41 +681,30 @@ export default function CreatorDashboard() {
           </div>
         )}
 
-        {/* Header */}
+        {/* Header (mobile-first stacked layout) */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4 mb-4">
-            <img 
-              src={creator.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.display_name)}&size=64&background=2563eb&color=ffffff`}
-              alt={creator.display_name}
-              className="w-16 h-16 rounded-full border-4 border-white shadow-lg"
-            />
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const file = e.target.profile_picture.files[0];
-              if (!file) return;
-              const formData = new FormData();
-              formData.append("profile_picture", file);
-              const res = await fetch("/api/creators/upload-profile-picture", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
-                body: formData,
-              });
-              const data = await res.json();
-              if (res.ok && data.url) {
-                setCreator((prev) => ({ ...prev, profile_image: data.url }));
-                toastSuccess("Profile picture updated.");
-              } else {
-                toastError(data.error || "Failed to update profile picture.");
-              }
-            }} className="flex flex-col items-start ml-4">
-              <input type="file" name="profile_picture" accept="image/*" className="mb-2" />
-              <Button type="submit" size="sm">Update Picture</Button>
-            </form>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Welcome back, {creator.display_name}!</h1>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col items-center sm:items-start">
+              <img
+                src={creator.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.display_name)}&size=128&background=2563eb&color=ffffff`}
+                alt={creator.display_name}
+                className="w-28 h-28 sm:w-16 sm:h-16 rounded-full border-4 border-white shadow-lg"
+              />
+              <div className="mt-3 w-full sm:w-auto">
+                <input id="profile-upload-input" type="file" accept="image/*" className="hidden" onChange={onFileInputChange} />
+                <label htmlFor="profile-upload-input" className="block w-full text-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-full cursor-pointer touch-manipulation">
+                  Update photo
+                </label>
+                {creator.profile_image ? (
+                  <button type="button" onClick={handleRemovePhoto} className="block w-full mt-2 text-sm text-red-600 text-center sm:inline sm:w-auto sm:mt-0 sm:ml-2">
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Welcome back, {creator.display_name}!</h1>
               <p className="text-gray-600">@{creator.tiktok_username}</p>
               {creator.is_verified && (
                 <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full mt-1">
@@ -675,9 +712,8 @@ export default function CreatorDashboard() {
                 </span>
               )}
             </div>
-            </div>
-            {/* Sound toggle removed for production */}
           </div>
+          {/* Sound toggle removed for production */}
         </div>
 
         {/* Share Link */}
@@ -753,3 +789,5 @@ export default function CreatorDashboard() {
     </div>
   );
 }
+
+// Uploader component removed — using the simple Update photo button in the header instead.
