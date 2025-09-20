@@ -21,6 +21,18 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 		const amountInvalid = !isFinite(amountNumber) || amountNumber <= 0 || amountNumber > available || amountNumber < MIN_WITHDRAW;
 		const momoInvalid = !momoRegex.test((momo || "").trim());
 
+		// compute fee breakdown (platform 17%, paystack 2% borne by platform)
+		const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+		const fees = useMemo(() => {
+			const amt = amountNumber;
+			if (!(amt > 0)) return { platform_fee: 0, paystack_fee: 0, creator_amount: 0, platform_net: 0 };
+			const platform_fee = round2(amt * 0.17);
+			const paystack_fee = round2(amt * 0.02);
+			const creator_amount = round2(amt - platform_fee);
+			const platform_net = round2(platform_fee - paystack_fee);
+			return { platform_fee, paystack_fee, creator_amount, platform_net };
+		}, [amountNumber]);
+
 	const handleSubmit = (e) => {
 		e.preventDefault();
 		const value = amountNumber;
@@ -54,24 +66,20 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 							<div className="rounded-lg border p-4 bg-gray-50">
 								<div className="flex items-center justify-between py-1">
 									<span className="text-sm text-gray-600">Amount</span>
-											<span className="font-semibold">GH₵ {amountNumber.toFixed(2)}</span>
+									<span className="font-semibold">GH₵ {amountNumber.toFixed(2)}</span>
 								</div>
 								<div className="flex items-center justify-between py-1">
 									<span className="text-sm text-gray-600">To Mobile Money</span>
 									<span className="font-semibold">{momo}</span>
 								</div>
-										<div className="flex items-center justify-between py-1 pt-3 border-t">
-											<span className="text-sm text-gray-600">Platform fee</span>
-											<span className="font-semibold">GH₵ 0.00</span>
-										</div>
-										<div className="flex items-center justify-between py-1">
-											<span className="text-sm text-gray-600">Paystack fee</span>
-											<span className="font-semibold">GH₵ 0.00</span>
-										</div>
-										<div className="flex items-center justify-between py-1">
-											<span className="text-sm text-gray-600">Estimated payout</span>
-											<span className="font-semibold">GH₵ {amountNumber.toFixed(2)}</span>
-										</div>
+								<div className="flex items-center justify-between py-1 pt-3 border-t">
+									<span className="text-sm text-gray-600">Creator receives</span>
+									<span className="font-semibold">GH₵ {fees.creator_amount.toFixed(2)}</span>
+								</div>
+								<div className="flex items-center justify-between py-1">
+									<span className="text-sm text-gray-600">Platform receives</span>
+									<span className="font-semibold">GH₵ {fees.platform_net.toFixed(2)}</span>
+								</div>
 							</div>
 							<div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
 								<AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />

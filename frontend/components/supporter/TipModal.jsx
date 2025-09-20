@@ -10,22 +10,8 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 	const [isSending, setIsSending] = useState(false);
 	const presets = [5, 10, 50, 100];
 	const MIN_TIP = 1;
-	const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
-
 	const amountNumber = useMemo(() => parseFloat(amount || "0"), [amount]);
 	const amountInvalid = !isFinite(amountNumber) || amountNumber < MIN_TIP;
-
-	// compute fee breakdown client-side for confirmation display
-	const fees = useMemo(() => {
-		const amt = amountNumber;
-		if (!(amt > 0)) return { platform_fee: 0, paystack_fee: 0, creator_amount: 0 };
-		const platform_fee = round2(amt * 0.17);
-		const paystack_fee = round2(amt * 0.02);
-		const creator_amount = round2(amt - platform_fee);
-		return { platform_fee, paystack_fee, creator_amount };
-	}, [amountNumber]);
-
-	const [isConfirming, setIsConfirming] = useState(false);
 
 	// Keep a stable idempotency key for the current form submission (retries share it)
 	const currentKeyRef = useRef(null);
@@ -91,58 +77,26 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 
 	const submit = async (e) => {
 		e.preventDefault();
-		// Validate minimum client-side and show confirmation step
 		if (amountInvalid) {
 			alert(`Minimum tip is GH₵ ${MIN_TIP.toFixed(2)}`);
 			return;
 		}
-		setIsConfirming(true);
+		// Initiate Paystack flow directly for supporters
+		try {
+			await doInitiate();
+		} catch (err) {
+			// user-facing errors already alerted in doInitiate; log for dev
+			console.error('Initiate failed', err);
+		}
 	};
 
 	return (
 		<div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
 			<Card className="w-full max-w-md">
-				<CardHeader>
-					<CardTitle>{isConfirming ? 'Confirm Tip' : 'Send a Tip'}</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{isConfirming ? (
-						<div className="space-y-4">
-							<div className="flex items-center gap-3">
-								<img
-									src={creator?.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator?.display_name || "?")}&size=64&background=ef4444&color=ffffff`}
-									alt={creator?.display_name}
-									className="w-12 h-12 rounded-full border"
-								/>
-								<div>
-									<p className="font-medium">{creator?.display_name}</p>
-									<p className="text-sm text-gray-500">@{creator?.tiktok_username}</p>
-								</div>
-							</div>
-							<div className="rounded-lg border p-4 bg-gray-50">
-								<div className="flex items-center justify-between py-1">
-									<span className="text-sm text-gray-600">Gross amount</span>
-									<span className="font-semibold">GH₵ {amountNumber.toFixed(2)}</span>
-								</div>
-								<div className="flex items-center justify-between py-1">
-									<span className="text-sm text-gray-600">Creator receives</span>
-									<span className="font-semibold">GH₵ {fees.creator_amount.toFixed(2)}</span>
-								</div>
-								<div className="flex items-center justify-between py-1">
-									<span className="text-sm text-gray-600">Platform fee (17%)</span>
-									<span className="font-semibold">GH₵ {fees.platform_fee.toFixed(2)}</span>
-								</div>
-								<div className="flex items-center justify-between py-1">
-									<span className="text-sm text-gray-600">Paystack fee (2%)</span>
-									<span className="font-semibold">GH₵ {fees.paystack_fee.toFixed(2)}</span>
-								</div>
-							</div>
-							<div className="flex justify-end gap-2">
-								<Button type="button" variant="outline" onClick={() => setIsConfirming(false)} disabled={isSending}>Back</Button>
-								<Button type="button" onClick={async () => { try { await doInitiate(); } catch (_) {} }} disabled={isSending}>{isSending ? 'Processing...' : 'Proceed to Pay'}</Button>
-							</div>
-						</div>
-					) : (
+					<CardHeader>
+						<CardTitle>Send a Tip</CardTitle>
+					</CardHeader>
+					<CardContent>
 						<form onSubmit={submit} className="space-y-4">
 						<div className="flex items-center gap-3">
 							<img
@@ -212,7 +166,6 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 							<Button type="submit" disabled={isSending || amountInvalid}>Send Tip</Button>
 						</div>
 					</form>
-					)}
 				</CardContent>
 			</Card>
 		</div>
