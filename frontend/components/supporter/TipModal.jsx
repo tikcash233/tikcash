@@ -180,12 +180,15 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 												className="pl-12"
 												type="number"
 												step="0.01"
-												min="0"
+												min={MIN_TIP}
 												value={amount}
 												onChange={(e) => setAmount(e.target.value)}
-												placeholder="Enter amount"
+												placeholder={`Minimum GH₵ ${MIN_TIP.toFixed(2)}`}
 												required
 											/>
+											{amount && amountNumber < MIN_TIP && (
+												<p className="mt-1 text-xs text-red-600">Minimum tip is GH₵ {MIN_TIP.toFixed(2)}</p>
+											)}
 										</div>
 									</div>
 
@@ -206,7 +209,7 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 
 						<div className="flex justify-end gap-2">
 							<Button type="button" variant="outline" onClick={onClose} disabled={isSending}>Cancel</Button>
-							<Button type="submit" disabled={isSending || !amount}>Send Tip</Button>
+							<Button type="submit" disabled={isSending || amountInvalid}>Send Tip</Button>
 						</div>
 					</form>
 					)}
