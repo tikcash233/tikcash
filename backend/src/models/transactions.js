@@ -40,6 +40,23 @@ export async function createTransaction(data) {
   return res.rows[0];
 }
 
+// Helper to compute fees. All amounts are numbers (GHS). Returns rounded 2-decimal values.
+function computeFees(amount) {
+  // platform takes 17% of the tip, paystack takes 2% which is borne by the platform
+  const platformFeeRaw = Number(amount) * 0.17;
+  const paystackFeeRaw = Number(amount) * 0.02;
+  // Creator receives the remainder after platform fee
+  const creatorAmountRaw = Number(amount) - platformFeeRaw;
+
+  // Round to 2 decimals (financial rounding via cents)
+  const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+  const platform_fee = round2(platformFeeRaw);
+  const paystack_fee = round2(paystackFeeRaw);
+  const creator_amount = round2(creatorAmountRaw);
+  const platform_net = round2(platform_fee - paystack_fee);
+  return { platform_fee, paystack_fee, creator_amount, platform_net };
+}
+
 export async function getByIdempotency(creatorId, key) {
   if (!creatorId || !key) return null;
   const r = await query('SELECT * FROM transactions WHERE creator_id=$1 AND idempotency_key=$2 LIMIT 1', [creatorId, key]);
@@ -60,10 +77,26 @@ export async function createTipAndApply(data) {
       err.status = 400;
       throw err;
     }
+    // Enforce minimum tip (1 GHS)
+    if (data.transaction_type === 'tip' && Number(data.amount) < 1) {
+      const err = new Error('Minimum tip is 1 GHS');
+      err.status = 400;
+      throw err;
+    }
     if (data.transaction_type === 'withdrawal' && !(data.amount < 0)) {
       const err = new Error('Withdrawal amount must be negative');
       err.status = 400;
       throw err;
+    }
+
+    // Enforce minimum withdrawal absolute value (10 GHS)
+    if (data.transaction_type === 'withdrawal') {
+      const withdrawAbs = Math.abs(Number(data.amount));
+      if (withdrawAbs < 10) {
+        const err = new Error('Minimum withdrawal is 10 GHS');
+        err.status = 400;
+        throw err;
+      }
     }
 
     // Lock creator row during balance update
@@ -84,17 +117,25 @@ export async function createTipAndApply(data) {
     }
 
     const status = data.status || (data.transaction_type === 'tip' ? 'completed' : 'pending');
+    // Compute fees for tips; withdrawals don't carry fees here
+    let fees = { platform_fee: 0, paystack_fee: 0, creator_amount: Number(data.amount), platform_net: 0 };
+    if (data.transaction_type === 'tip' && Number(data.amount) > 0) {
+      fees = computeFees(Number(data.amount));
+    }
+
     const txRes = await client.query(
-      `INSERT INTO transactions(creator_id, supporter_name, amount, message, transaction_type, status, payment_reference, momo_number, supporter_user_id)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [data.creator_id, data.supporter_name || null, data.amount, data.message || null, data.transaction_type, status, data.payment_reference || null, data.momo_number || null, data.supporter_user_id || null]
+      `INSERT INTO transactions(creator_id, supporter_name, amount, message, transaction_type, status, payment_reference, momo_number, supporter_user_id, platform_fee, paystack_fee, creator_amount, platform_net)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [data.creator_id, data.supporter_name || null, data.amount, data.message || null, data.transaction_type, status, data.payment_reference || null, data.momo_number || null, data.supporter_user_id || null, fees.platform_fee, fees.paystack_fee, fees.creator_amount, fees.platform_net]
     );
     const tx = txRes.rows[0];
 
-    if (data.transaction_type === 'tip' && data.amount > 0) {
+    if (data.transaction_type === 'tip' && Number(data.amount) > 0) {
+      // Apply only the creator's share to balances
+      const creatorShare = fees.creator_amount;
       await client.query(
         `UPDATE creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2`,
-        [data.amount, data.creator_id]
+        [creatorShare, data.creator_id]
       );
     }
     if (data.transaction_type === 'withdrawal' && data.amount < 0) {
@@ -121,10 +162,13 @@ export async function completePendingTip(reference, amount) {
     const tx = tr.rows[0];
     if (tx.status !== 'pending') return tx; // already processed
     // Update transaction (ensure amount is set in case it was 0)
-    await client.query('UPDATE transactions SET status = $2, amount = $3 WHERE id = $1', [tx.id, 'completed', amount]);
-    // Apply to creator balances
-    if (amount > 0) {
-      await client.query('UPDATE creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2', [amount, tx.creator_id]);
+    // Compute fees and creator share for the finalized amount
+    const finalAmount = Number(amount);
+    const fees = (finalAmount > 0) ? computeFees(finalAmount) : { platform_fee: 0, paystack_fee: 0, creator_amount: finalAmount, platform_net: 0 };
+    await client.query('UPDATE transactions SET status = $2, amount = $3, platform_fee = $4, paystack_fee = $5, creator_amount = $6, platform_net = $7 WHERE id = $1', [tx.id, 'completed', finalAmount, fees.platform_fee, fees.paystack_fee, fees.creator_amount, fees.platform_net]);
+    // Apply to creator balances (only their share)
+    if (finalAmount > 0) {
+      await client.query('UPDATE creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2', [fees.creator_amount, tx.creator_id]);
     }
     const updated = await client.query('SELECT * FROM transactions WHERE id = $1', [tx.id]);
   const finalTx = updated.rows[0];

@@ -628,6 +628,10 @@ app.get('/api/payments/paystack/verify/:reference', async (req, res, next) => {
     const data = await verifyPaystackTransaction(ref);
     if (data.status === 'success') {
       // finalize balances if not yet applied
+      // NOTE: Tips are non-refundable by policy. Completed tip rows are immutable
+      // at the DB level (see migrations/0010_prevent_refunds.sql). Only allow
+      // completing a pending transaction to 'completed' here; do not provide
+      // any API to revert or alter completed tips.
       await completePendingTip(ref, Number(data.amount) / 100);
       const updated = await getTransactionByReference(ref);
   emitTransactionEvent(updated);
