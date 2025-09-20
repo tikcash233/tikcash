@@ -148,11 +148,11 @@ export const User = {
     }
   },
   async myCreators({ page = 1, limit = 24 } = {}) {
-    const qs = new URLSearchParams();
-    qs.set('page', String(page));
-    qs.set('limit', String(limit));
-    // Returns { data, page, pageSize, hasMore }
-    return await fetchJson(`/api/me/creators?${qs.toString()}`);
+    // Supporters no longer have accounts and the backend route `/api/me/creators`
+    // was removed. Return an empty, well-formed response so the frontend
+    // components that expect this shape will continue to work without
+    // making a failing network request.
+    return { data: [], page, pageSize: limit, hasMore: false };
   },
   async register(payload) {
     // Send full payload so creator fields reach the backend for auto-creation
