@@ -725,7 +725,7 @@ export default function CreatorDashboard() {
                 />
                 <button
                   type="button"
-                  className="absolute bottom-2 right-2 sm:bottom-2 sm:right-2 bg-white rounded-full p-1 shadow-md hover:bg-blue-100 transition-colors flex items-center justify-center"
+                  className="absolute bottom-2 right-2 sm:bottom-2 sm:right-2 sm:hidden bg-white rounded-full p-1 shadow-md hover:bg-blue-100 transition-colors flex items-center justify-center"
                   title={creator.profile_image ? "Change or remove photo" : "Upload photo"}
                   onClick={() => document.getElementById('profile-upload-input').click()}
                   style={{ zIndex: 2 }}
@@ -737,7 +737,7 @@ export default function CreatorDashboard() {
                     <button
                       type="button"
                       onClick={handleRemovePhoto}
-                      className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md hover:bg-red-100 transition-colors flex items-center justify-center"
+                      className="absolute top-2 right-2 sm:hidden bg-white rounded-full p-1 shadow-md hover:bg-red-100 transition-colors flex items-center justify-center"
                       title="Remove photo"
                       style={{ zIndex: 2 }}
                     >
@@ -754,6 +754,32 @@ export default function CreatorDashboard() {
                     />
                   </>
                 )}
+                {/* Desktop inline buttons: visible on sm+; placed to the right of avatar */}
+                <div className="hidden sm:flex sm:absolute sm:left-full sm:top-1/2 sm:-translate-y-1/2 sm:ml-2 sm:items-center sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('profile-upload-input').click()}
+                    className="inline-flex items-center gap-2 bg-white border border-gray-200 text-sm px-3 py-1 rounded-md shadow-sm hover:shadow-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300"
+                    title={creator.profile_image ? "Change photo" : "Upload photo"}
+                    aria-label="Upload or change profile photo"
+                  >
+                    <PenIcon size={16} color="#2563eb" />
+                    <span className="text-blue-600 font-medium">Edit photo</span>
+                  </button>
+
+                  {creator.profile_image && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="inline-flex items-center gap-2 bg-white border border-red-100 text-sm px-3 py-1 rounded-md shadow-sm hover:bg-red-50 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-300"
+                      title="Remove photo"
+                      aria-label="Remove profile photo"
+                    >
+                      <span style={{ display: 'inline-block', width: 16, height: 16, color: '#dc2626', fontSize: 16, lineHeight: '16px', textAlign: 'center' }}>×</span>
+                      <span className="text-red-600 font-medium">Remove</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
