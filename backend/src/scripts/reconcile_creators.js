@@ -9,11 +9,13 @@ const commit = process.argv.includes('--commit');
 
 async function preview() {
   // Count completed tips and sum of recomputed creator_amounts
+  // Use WHERE-based aggregates for compatibility
   const counts = await query(`
     SELECT
-      COUNT(*) FILTER (WHERE transaction_type='tip' AND status='completed' AND amount > 0) AS completed_tips,
-      COALESCE(SUM(ROUND((amount - (amount * 0.17::numeric))::numeric, 2)), 0) FILTER (WHERE transaction_type='tip' AND status='completed' AND amount > 0) AS recomputed_creator_total
+      COUNT(*) AS completed_tips,
+      COALESCE(SUM(ROUND((amount - (amount * 0.17::numeric))::numeric, 2)), 0) AS recomputed_creator_total
     FROM transactions
+    WHERE transaction_type='tip' AND status='completed' AND amount > 0
   `);
   return counts.rows[0];
 }
@@ -110,7 +112,9 @@ async function main() {
   console.log('Previewing reconciliation...');
   const p = await preview();
   console.log('Completed tip rows:', p.completed_tips);
-  console.log('Recomputed creator_amount total (sum of creator_amount on completed tips): GH₵', p.recomputed_creator_total.toFixed(2));
+  // pg returns NUMERIC as string; coerce safely to Number for formatting
+  const recomputedTotal = Number(p.recomputed_creator_total) || 0;
+  console.log('Recomputed creator_amount total (sum of creator_amount on completed tips): GH₵', recomputedTotal.toFixed(2));
 
   if (!commit) {
     console.log('\nNo changes made. To apply changes run with --commit.');
