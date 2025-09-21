@@ -130,6 +130,8 @@ export async function createTipAndApply(data) {
     );
     const tx = txRes.rows[0];
 
+    
+
     if (data.transaction_type === 'tip' && Number(data.amount) > 0) {
       // Apply only the creator's share to balances
       const creatorShare = fees.creator_amount;
@@ -167,17 +169,24 @@ export async function completePendingTip(reference, amount) {
     // Compute fees and creator share for the finalized amount
     const finalAmount = Number(amount);
     const fees = (finalAmount > 0) ? computeFees(finalAmount) : { platform_fee: 0, paystack_fee: 0, creator_amount: finalAmount, platform_net: 0 };
-    await client.query('UPDATE transactions SET status = $2, amount = $3, platform_fee = $4, paystack_fee = $5, creator_amount = $6, platform_net = $7 WHERE id = $1', [tx.id, 'completed', finalAmount, fees.platform_fee, fees.paystack_fee, fees.creator_amount, fees.platform_net]);
+  await client.query('UPDATE transactions SET status = $2, amount = $3, platform_fee = $4, paystack_fee = $5, creator_amount = $6, platform_net = $7 WHERE id = $1', [tx.id, 'completed', finalAmount, fees.platform_fee, fees.paystack_fee, fees.creator_amount, fees.platform_net]);
     // Apply to creator balances (only their share)
     if (finalAmount > 0) {
       await client.query('UPDATE creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2', [fees.creator_amount, tx.creator_id]);
     }
-    const updated = await client.query('SELECT * FROM transactions WHERE id = $1', [tx.id]);
-  const finalTx = updated.rows[0];
-    try { emitTransactionEvent(finalTx); } catch (e) { /* swallow */ }
-  return finalTx;
+    try {
+      const updated = await client.query('SELECT * FROM transactions WHERE id = $1', [tx.id]);
+      const finalTx = updated.rows[0];
+      try { emitTransactionEvent(finalTx); } catch (e) { /* swallow */ }
+      return finalTx;
+    } catch (e) {
+      // If selecting back the transaction failed, still return a minimal object
+      try { emitTransactionEvent({ id: tx.id, status: 'completed', transaction_type: 'tip' }); } catch (__) {}
+      return { id: tx.id, status: 'completed' };
+    }
   });
 }
+
 
 // Fetch creators supported by a specific user (from their successful transactions)
 export async function listCreatorsSupportedByUser(userId, { page = 1, limit = 24 } = {}) {
