@@ -264,9 +264,13 @@ export default function CreatorDashboard() {
 
   // Show a completion notification
   const showCompletedTipNotification = (tip) => {
+    // Prefer creator_amount (net) when provided by backend; otherwise compute fallback net.
+    const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+    const raw = Number(tip.amount || 0) || 0;
+    const net = Number(tip.creator_amount != null ? tip.creator_amount : round2(raw * (1 - 0.17)));
     const notification = {
       id: Date.now(),
-      amount: Number(tip.amount || 0),
+      amount: net,
       supporter_name: tip.supporter_name || 'Anonymous',
       message: tip.message || ''
     };

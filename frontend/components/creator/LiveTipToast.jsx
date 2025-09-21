@@ -11,7 +11,10 @@ export default function LiveTipToast({ tip, onClose, duration = 8000 }) {
 
   if (!tip) return null;
 
-  const amount = Number(tip.amount || 0);
+  // Prefer server-provided creator_amount (net to creator). If missing, compute net after 17% platform fee.
+  const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+  const rawAmt = Number(tip.amount || 0);
+  const amount = Number(tip.creator_amount != null ? tip.creator_amount : round2(rawAmt * (1 - 0.17)));
   const supporter = tip.supporter_name || "Anonymous";
   let message = tip.message || tip.note;
   if (message && message.length > 160) {
