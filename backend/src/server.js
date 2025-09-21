@@ -590,12 +590,15 @@ app.post('/api/payments/paystack/initiate', async (req, res, next) => {
     emitTransactionEvent(pendingTx);
 
     // STEP 3: Call Paystack. If the network fails AFTER DB insert, client retry with same key will reuse row above.
+    // Include creator_id in callback URL so the frontend can deep-link back to the supporter flow
+    const callbackBase = (process.env.PUBLIC_APP_URL || 'http://localhost:3000') + '/payment/result';
+    const callbackUrl = callbackBase + '?ref=' + encodeURIComponent(reference) + '&creator_id=' + encodeURIComponent(String(creator_id));
     const initData = await initializePaystackTransaction({
       amountGHS: amt,
       email: supporter_email || 'anon@example.com',
       reference,
       metadata: { creator_id, supporter_name, message },
-      callbackUrl: (process.env.PUBLIC_APP_URL || 'http://localhost:3000') + '/payment/result?ref=' + reference
+      callbackUrl
     });
 
     // Persist authorization_url for future idempotent retries returning early

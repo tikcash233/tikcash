@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 export default function PaymentResult() {
   const [params] = useSearchParams();
@@ -73,6 +75,13 @@ export default function PaymentResult() {
     }
   };
 
+  // Attempt to find a creator id on the page so we can offer a deep-link back to tipping the same creator
+  const location = useLocation();
+  const navigate = useNavigate();
+  const qp = new URLSearchParams(location.search);
+  // Common keys that might appear in transaction or state
+  const txnCreatorId = qp.get('creator_id') || qp.get('creatorId') || qp.get('creator');
+
   return (
     <div className="max-w-md mx-auto py-16 px-4 text-center">
       <h1 className="text-2xl font-bold mb-4">Payment Result</h1>
@@ -93,7 +102,24 @@ export default function PaymentResult() {
           {error && <p className="text-xs text-red-500 mb-4">{error}</p>}
           <div className="space-x-4">
             <Link to="/support" className="text-blue-600 underline">Back to Support</Link>
-            <Link to="/" className="text-gray-600 underline">Home</Link>
+``            {txnCreatorId && (
+              <Button
+                variant="success"
+                size="md"
+                as="button"
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  params.set('creator_id', txnCreatorId);
+                  navigate({ pathname: '/support', search: params.toString() });
+                }}
+                className="ml-2 rounded-full px-4"
+              >
+                <svg className="w-4 h-4 mr-2" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M10 3a1 1 0 00-1 1v6H6a1 1 0 000 2h3v6a1 1 0 002 0v-6h3a1 1 0 100-2h-3V4a1 1 0 00-1-1z" />
+                </svg>
+                Tip again
+              </Button>
+            )}
           </div>
         </>
       )}

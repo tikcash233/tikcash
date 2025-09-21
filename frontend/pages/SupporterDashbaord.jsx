@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Creator, Transaction, User } from "@/entities/all";
 import { Input } from "@/components/ui/input";
 import { Search, ArrowUp, UserPlus, Eye } from "lucide-react";
@@ -13,6 +13,7 @@ export default function SupporterDashboard() {
   const [creators, setCreators] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedCreator, setSelectedCreator] = useState(null);
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [searchPage, setSearchPage] = useState(1);
@@ -35,6 +36,39 @@ export default function SupporterDashboard() {
       }
     })();
   }, [username]);
+
+  // Deep-link: open tip modal when ?creator_id=... is present
+  const location = useLocation();
+  useEffect(() => {
+    const qp = new URLSearchParams(location.search);
+    const creatorId = qp.get('creator_id') || qp.get('creatorId') || qp.get('creator');
+    if (!creatorId) return;
+
+    // Try to find the creator in the already-loaded list
+    const found = creators.find(c => String(c.id) === String(creatorId));
+    if (found) {
+      setSelectedCreator(found);
+      setIsTipModalOpen(true);
+      return;
+    }
+
+    // Fallback: fetch creator by id
+    (async () => {
+      try {
+        const res = await fetch(`/api/creators/${encodeURIComponent(creatorId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data) {
+          setSelectedCreator(data);
+          setIsTipModalOpen(true);
+          // Add to creators list for convenience
+          setCreators(prev => (prev.some(p => p.id === data.id) ? prev : [data, ...prev]));
+        }
+      } catch (e) {
+        console.warn('Failed to load creator for deep-link', e);
+      }
+    })();
+  }, [location.search, creators]);
 
   // Show/hide scroll-to-top button based on scroll position
   useEffect(() => {
@@ -250,9 +284,15 @@ export default function SupporterDashboard() {
         {/* Tip Modal */}
         {selectedCreator && (
           <TipModal
+            open={isTipModalOpen}
             creator={selectedCreator}
             onSendTip={handleSendTip}
-            onClose={() => setSelectedCreator(null)}
+            onClose={() => {
+              setSelectedCreator(null);
+              setIsTipModalOpen(false);
+              // Clear the query param so reloading doesn't re-open the modal
+              try { history.replaceState({}, '', '/support'); } catch {}
+            }}
           />
         )}
         {showScrollTop && (
