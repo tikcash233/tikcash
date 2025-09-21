@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Users, Gift } from "lucide-react";
+import { TrendingUp, Users, Gift, AlertTriangle } from "lucide-react";
 import EarningsOverview from "../components/creator/EarningsOverview";
 import ShareLinkBar from "../components/creator/ShareLinkBar";
 import RecentTransactions from "../components/creator/RecentTransactions";
@@ -808,24 +808,34 @@ export default function CreatorDashboard() {
           {stats.map((stat, index) => {
             const pulse = balancePulse && (stat.title === 'Total Earnings' || stat.title === 'Available Balance');
             return (
-              <Card key={index} className={`border-none shadow-lg transition-all duration-300 ${pulse ? 'ring-2 ring-emerald-400 scale-[1.015]' : 'hover:shadow-xl'}`}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
-                        {stat.title}
-                        {pulse && (
-                          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                        )}
-                      </p>
-                      <p className={`text-2xl font-bold text-gray-900 ${pulse ? 'animate-pulse' : ''}`}>{stat.value}</p>
+              <React.Fragment key={index}>
+                {stat.title === 'Total Earnings' && (
+                  <div className="mb-2 flex justify-center">
+                      <span className="inline-flex items-center text-xs text-amber-700 bg-amber-100/40 rounded px-3 py-1">
+                        <AlertTriangle className="w-4 h-4 mr-2" />
+                        <span>The amounts you see already have 17% fee taken out.The withdrawable amount is what you can take out.</span>
+                      </span>
                     </div>
-                    <div className={`p-3 rounded-xl ${stat.bgColor} ${pulse ? 'ring-2 ring-white/50' : ''}`}>
-                      <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                )}
+                <Card className={`border-none shadow-lg transition-all duration-300 ${pulse ? 'ring-2 ring-emerald-400 scale-[1.015]' : 'hover:shadow-xl'}`}>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
+                          {stat.title}
+                          {pulse && (
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                          )}
+                        </p>
+                        <p className={`text-2xl font-bold text-gray-900 ${pulse ? 'animate-pulse' : ''}`}>{stat.value}</p>
+                      </div>
+                      <div className={`p-3 rounded-xl ${stat.bgColor} ${pulse ? 'ring-2 ring-white/50' : ''}`}>
+                        <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </React.Fragment>
             );
           })}
         </div>

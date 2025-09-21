@@ -63,9 +63,7 @@ export default function EarningsOverview({ creator, onWithdraw }) {
             <div className="mt-6 text-xs text-slate-300">Platinum Card</div>
           </div>
         </div>
-        <div className="mt-3 text-xs text-gray-500">
-          Amounts shown are net after a 17% platform fee. Withdrawable = net amount.
-        </div>
+        
       </CardContent>
     </Card>
   );
