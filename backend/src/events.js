@@ -9,6 +9,9 @@ txEvents.setMaxListeners(0);
 export function emitTransactionEvent(tx) {
   if (!tx) return;
   try {
+    // Include both the raw amount (what supporter paid) and the creator_amount
+    // (what the creator actually receives after platform fees). Frontend should
+    // prefer creator_amount when updating balances or drawing earnings charts.
     txEvents.emit('tx', {
       type: 'transaction.update',
       id: tx.id || null,
@@ -16,6 +19,9 @@ export function emitTransactionEvent(tx) {
       status: tx.status || null,
       creator_id: tx.creator_id || null,
       amount: tx.amount != null ? Number(tx.amount) : null,
+      creator_amount: tx.creator_amount != null ? Number(tx.creator_amount) : null,
+      platform_fee: tx.platform_fee != null ? Number(tx.platform_fee) : null,
+      paystack_fee: tx.paystack_fee != null ? Number(tx.paystack_fee) : null,
       supporter_name: tx.supporter_name || null,
       message: tx.message || null,
       transaction_type: tx.transaction_type || null,

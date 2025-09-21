@@ -109,7 +109,7 @@ export default function RecentTransactions({ transactions = [] }) {
                   </div>
                   <div className="flex flex-col items-end gap-1 ml-auto">
                     <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-sm font-semibold whitespace-nowrap tabular-nums">
-                      {`GH₵ ${Number(t.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      {`GH₵ ${Number((t.creator_amount != null) ? t.creator_amount : t.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     </span>
                     <span
                       className={

@@ -415,7 +415,9 @@ export default function CreatorDashboard() {
       const fullTx = {
         id: data.id || 'temp_' + data.reference,
         creator_id: data.creator_id,
-        amount: data.amount,
+        // Prefer the creator_amount (net to creator) when provided by backend.
+        // Fall back to raw amount if not present (legacy events).
+        amount: (data.creator_amount != null) ? data.creator_amount : data.amount,
         transaction_type: data.transaction_type || 'tip',
         status: data.status,
         payment_reference: data.reference,

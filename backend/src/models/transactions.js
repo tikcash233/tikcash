@@ -144,6 +144,8 @@ export async function createTipAndApply(data) {
         [data.amount, data.creator_id]
       );
     }
+    // Emit SSE so clients receive real-time updates (including creator_amount)
+    try { emitTransactionEvent(tx); } catch (e) { /* swallow */ }
     return tx;
   });
 }
@@ -172,7 +174,7 @@ export async function completePendingTip(reference, amount) {
     }
     const updated = await client.query('SELECT * FROM transactions WHERE id = $1', [tx.id]);
   const finalTx = updated.rows[0];
-  emitTransactionEvent(finalTx);
+    try { emitTransactionEvent(finalTx); } catch (e) { /* swallow */ }
   return finalTx;
   });
 }

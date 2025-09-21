@@ -103,8 +103,9 @@ export default function PerformanceChart({ transactions = [] }) {
 			} else {
 				bucketDate = startOfDay(rawDate);
 			}
+			// Use creator_amount (what the creator actually receives) when available.
 			included.push({
-				amount: Number(t.amount || 0),
+				amount: Number((t.creator_amount != null) ? t.creator_amount : t.amount || 0),
 				date: bucketDate,
 				created_date: t.created_date
 			});
