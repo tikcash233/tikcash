@@ -827,7 +827,7 @@ export default function CreatorDashboard() {
                   <div className="mb-2 flex justify-center">
                       <span className="inline-flex items-center text-xs text-amber-700 bg-amber-100/40 rounded px-3 py-1">
                         <AlertTriangle className="w-4 h-4 mr-2" />
-                        <span>The amounts you see already have platform fees taken out (15% platform + 2% processor). The withdrawable amount is what you can take out.</span>
+                        <span>The amounts you see already have platform fees taken out (17%). The withdrawable amount is what you can take out.</span>
                       </span>
                     </div>
                 )}
