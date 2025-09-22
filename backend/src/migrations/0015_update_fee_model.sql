@@ -1,10 +1,10 @@
--- Recompute per-transaction fee fields and creator aggregates
--- This migration attempts to update transaction fee columns for completed tips, but
--- if the DB enforces immutability for completed tips (via trigger), we catch the error
--- and continue by recomputing creator totals without mutating transaction rows.
+-- Migration 0015: Switch fee model to platform_net=15% and paystack_fee=2%
+-- This migration recomputes transaction fee fields and updates creators aggregates using
+-- the new model: platform_net = round(amount * 0.15, 2), paystack_fee = round(amount * 0.02, 2),
+-- creator_amount = round(amount - platform_net - paystack_fee, 2), and platform_fee = platform_net + paystack_fee.
 BEGIN;
 
--- Try to update transaction-level fee fields for completed tips inside a DO block
+-- Update transaction fee fields for completed tips
 DO $$
 BEGIN
   UPDATE transactions
@@ -18,13 +18,11 @@ BEGIN
     AND amount IS NOT NULL
     AND amount > 0;
 EXCEPTION WHEN OTHERS THEN
-  -- If the DB raises (e.g., immutability trigger), log a notice and continue.
   RAISE NOTICE 'Skipping transaction updates due to error: %', SQLERRM;
 END
 $$;
 
--- Recompute creators totals from transactions (only completed tips + all withdrawals)
--- Use the fee formula directly so we don't require transaction rows to have creator_amount set.
+-- Recompute creators totals from transactions using new formula
 WITH tip_sums AS (
   SELECT creator_id,
          COALESCE(SUM(ROUND((amount - (amount * 0.15::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
@@ -59,7 +57,3 @@ FROM agg
 WHERE creators.id = agg.creator_id;
 
 COMMIT;
-
--- Notes: this migration is conservative: it attempts to populate transaction fee columns,
--- but if that fails (e.g. immutability triggers), it still fixes creators totals by computing
--- net amounts directly from the gross amount using the previous 17% platform fee (historical migration).

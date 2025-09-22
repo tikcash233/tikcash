@@ -1,10 +1,10 @@
--- Recompute creator totals from transaction.amount without mutating transaction rows
--- This is a conservative migration for databases where completed tips are immutable.
 BEGIN;
 
--- Compute per-creator sums using the fee formula (17% platform fee) but do NOT update transactions.
+-- Compute per-creator sums using the fee formula (historically 17% platform fee) but do NOT update transactions.
+-- Note: newer migrations (e.g. 0015_update_fee_model.sql) migrate data to the 15% platform_net + 2% paystack model.
 WITH tip_calc AS (
   SELECT creator_id,
+         -- Historically this computed using a 17% platform fee; newer migrations adjust to 15%+2% model.
          COALESCE(SUM(ROUND((amount - (amount * 0.17::numeric))::numeric, 2)), 0) AS sum_creator_amount
   FROM transactions
   WHERE transaction_type = 'tip'
@@ -38,5 +38,3 @@ WHERE creators.id = agg.creator_id;
 
 COMMIT;
 
--- Note: This migration intentionally avoids changing transaction rows in case the DB enforces immutability
--- or other constraints. It recomputes creator totals from existing transaction.amount values.

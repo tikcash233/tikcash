@@ -21,15 +21,15 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 		const amountInvalid = !isFinite(amountNumber) || amountNumber <= 0 || amountNumber > available || amountNumber < MIN_WITHDRAW;
 		const momoInvalid = !momoRegex.test((momo || "").trim());
 
-		// compute fee breakdown (platform 17%, paystack 2% borne by platform)
+		// compute fee breakdown (platform_net 15%, paystack 2% borne by platform)
 		const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
 		const fees = useMemo(() => {
 			const amt = amountNumber;
 			if (!(amt > 0)) return { platform_fee: 0, paystack_fee: 0, creator_amount: 0, platform_net: 0 };
-			const platform_fee = round2(amt * 0.17);
 			const paystack_fee = round2(amt * 0.02);
-			const creator_amount = round2(amt - platform_fee);
-			const platform_net = round2(platform_fee - paystack_fee);
+			const platform_net = round2(amt * 0.15);
+			const platform_fee = round2(platform_net + paystack_fee);
+			const creator_amount = round2(amt - platform_net - paystack_fee);
 			return { platform_fee, paystack_fee, creator_amount, platform_net };
 		}, [amountNumber]);
 

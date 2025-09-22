@@ -278,7 +278,7 @@ export default function PerformanceChart({ transactions = [] }) {
 				</div>
 			</CardHeader>
 			<CardContent>
-				<div className="text-xs text-gray-400 mb-2">Chart shows net amounts (after 17% platform fee).</div>
+				<div className="text-xs text-gray-400 mb-2">Chart shows net amounts (after platform fees: 15% platform + 2% processor fee).</div>
 				{!hasData ? (
 					<p className="text-gray-600">No performance data yet.</p>
 				) : dSeries.length === 0 ? (

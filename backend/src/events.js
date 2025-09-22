@@ -10,18 +10,18 @@ export function emitTransactionEvent(tx) {
   if (!tx) return;
   try {
     // Compute fees if missing so SSE always includes canonical net/gross values.
-    // Uses same logic as models/transactions.js: platform 17%, paystack 2%, round 2 decimals.
+    // Uses same logic as models/transactions.js: platform_net 15%, paystack 2%, round 2 decimals.
     const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
     const computeFees = (amount) => {
       const a = Number(amount) || 0;
-      const platformFeeRaw = a * 0.17;
+      const platformNetRaw = a * 0.15;
       const paystackFeeRaw = a * 0.02;
-      const creatorAmountRaw = a - platformFeeRaw;
+      const creatorAmountRaw = a - platformNetRaw - paystackFeeRaw;
       return {
-        platform_fee: round2(platformFeeRaw),
+        platform_fee: round2(platformNetRaw + paystackFeeRaw),
         paystack_fee: round2(paystackFeeRaw),
         creator_amount: round2(creatorAmountRaw),
-        platform_net: round2(platformFeeRaw - paystackFeeRaw),
+        platform_net: round2(platformNetRaw),
       };
     };
     // Include both the raw amount (what supporter paid) and the creator_amount

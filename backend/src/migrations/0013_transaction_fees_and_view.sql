@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS transaction_fees (
 CREATE OR REPLACE VIEW vw_transaction_net AS
 SELECT
   t.*, 
+  -- Note: older deployments computed net using a 17% platform fee model. Newer code uses a 15% platform_net + 2% paystack model
   COALESCE(t.creator_amount, f.creator_amount,
            ROUND((t.amount - (t.amount * 0.17::numeric))::numeric, 2)
   ) AS net_to_creator,

@@ -41,19 +41,23 @@ export async function createTransaction(data) {
 }
 
 // Helper to compute fees. All amounts are numbers (GHS). Returns rounded 2-decimal values.
+// New model: platform should receive 15% of the gross tip (platform_net = 15% of amount).
+// Paystack charges 2% of the gross amount. Creator receives the remainder after both fees.
 function computeFees(amount) {
-  // platform takes 17% of the tip, paystack takes 2% which is borne by the platform
-  const platformFeeRaw = Number(amount) * 0.17;
-  const paystackFeeRaw = Number(amount) * 0.02;
-  // Creator receives the remainder after platform fee
-  const creatorAmountRaw = Number(amount) - platformFeeRaw;
+  const a = Number(amount) || 0;
+  // platform target net: 15% of gross
+  const platformNetRaw = a * 0.15;
+  // Paystack processor fee: 2% of gross (borne by platform)
+  const paystackFeeRaw = a * 0.02;
+  // Creator receives gross minus platform_net and paystack fee
+  const creatorAmountRaw = a - platformNetRaw - paystackFeeRaw;
 
   // Round to 2 decimals (financial rounding via cents)
   const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
-  const platform_fee = round2(platformFeeRaw);
+  const platform_fee = round2(platformNetRaw + paystackFeeRaw); // stored platform_fee column keeps gross platform take (incl. paystack cost)
   const paystack_fee = round2(paystackFeeRaw);
   const creator_amount = round2(creatorAmountRaw);
-  const platform_net = round2(platform_fee - paystack_fee);
+  const platform_net = round2(platformNetRaw); // what platform actually nets/receives
   return { platform_fee, paystack_fee, creator_amount, platform_net };
 }
 
