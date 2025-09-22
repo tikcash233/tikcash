@@ -21,17 +21,10 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 		const amountInvalid = !isFinite(amountNumber) || amountNumber <= 0 || amountNumber > available || amountNumber < MIN_WITHDRAW;
 		const momoInvalid = !momoRegex.test((momo || "").trim());
 
-		// compute fee breakdown (platform_net 15%, paystack 2% borne by platform)
-		const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
-		const fees = useMemo(() => {
-			const amt = amountNumber;
-			if (!(amt > 0)) return { platform_fee: 0, paystack_fee: 0, creator_amount: 0, platform_net: 0 };
-			const paystack_fee = round2(amt * 0.02);
-			const platform_net = round2(amt * 0.15);
-			const platform_fee = round2(platform_net + paystack_fee);
-			const creator_amount = round2(amt - platform_net - paystack_fee);
-			return { platform_fee, paystack_fee, creator_amount, platform_net };
-		}, [amountNumber]);
+		// Withdrawals: creators withdraw their available (net) balance. We do not show
+		// a creator/platform fee breakdown here. Processor transfer fees (if any)
+		// are handled by the payments provider and are not displayed in this UI.
+		const fees = useMemo(() => ({ platform_fee: 0, paystack_fee: 0, creator_amount: amountNumber, platform_net: 0 }), [amountNumber]);
 
 	const handleSubmit = (e) => {
 		e.preventDefault();
@@ -72,13 +65,27 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 									<span className="text-sm text-gray-600">To Mobile Money</span>
 									<span className="font-semibold">{momo}</span>
 								</div>
-								<div className="flex items-center justify-between py-1 pt-3 border-t">
-									<span className="text-sm text-gray-600">Creator receives</span>
-									<span className="font-semibold">GH₵ {fees.creator_amount.toFixed(2)}</span>
-								</div>
-								<div className="flex items-center justify-between py-1">
-									<span className="text-sm text-gray-600">Platform receives</span>
-									<span className="font-semibold">GH₵ {fees.platform_net.toFixed(2)}</span>
+								{/* Removed creator/platform breakdown for withdrawals per product rule.
+								    Show a short note about possible processor transfer fees instead. */}
+								<div className="py-2 text-sm text-gray-600 border-t pt-3">
+									<strong>Transfer pricing (Paystack - Ghana)</strong>
+									<ul className="mt-1 list-disc list-inside">
+										<li>Transfers to mobile money wallets: GHS 1 per successful transfer</li>
+									</ul>
+									<p className="mt-1">These fees are charged by the payments provider and may be deducted during the transfer. The amount you confirm to withdraw will be deducted from your TikCash balance.</p>
+									{/* Show estimated receive amount (amount - transfer fee) */}
+									{amountNumber > 0 && (
+										<div className="mt-2 flex items-center justify-between bg-white border rounded-md p-2">
+											<div className="text-sm text-gray-600">Estimated transfer fee</div>
+											<div className="font-semibold">GH₵ 1.00</div>
+										</div>
+									)}
+									{amountNumber > 0 && (
+										<div className="mt-2 flex items-center justify-between bg-gray-50 border rounded-md p-2">
+											<div className="text-sm text-gray-600">Estimated amount to be received</div>
+											<div className="font-semibold">GH₵ {(Math.max(0, amountNumber - 1)).toFixed(2)}</div>
+										</div>
+									)}
 								</div>
 							</div>
 							<div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
