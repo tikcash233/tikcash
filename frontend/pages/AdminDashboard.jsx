@@ -53,7 +53,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Admin: Pending Withdrawals</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Admin</h1>
+        <div className="flex gap-2">
+          <a href="/admin" className="px-3 py-1 rounded bg-blue-600 text-white">Pending</a>
+          <a href="/admin/approved" className="px-3 py-1 rounded bg-gray-100 text-gray-800">Approved</a>
+        </div>
+      </div>
+      <h2 className="text-xl font-semibold mb-4">Pending Withdrawals</h2>
       {loading && <div>Loading...</div>}
       {!loading && error && <div className="text-red-500">{error}</div>}
       {!loading && !error && withdrawals.length === 0 && (

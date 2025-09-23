@@ -9,6 +9,7 @@ import Auth from '@/pages/Auth.jsx';
 import Reset from '@/pages/Reset.jsx';
 import PaymentResult from '@/pages/PaymentResult.jsx';
 import AdminDashboard from '@/pages/AdminDashboard.jsx';
+import AdminApproved from '@/pages/AdminApproved.jsx';
 
 function WithLayout({ children, name }) {
   return <Layout currentPageName={name}>{children}</Layout>;
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/reset" element={<WithLayout name="Reset"><Reset /></WithLayout>} />
           <Route path="/payment/result" element={<WithLayout name="PaymentResult"><PaymentResult /></WithLayout>} />
           <Route path="/admin" element={<WithLayout name="AdminDashboard"><AdminDashboard /></WithLayout>} />
+          <Route path="/admin/approved" element={<WithLayout name="AdminDashboard"><AdminApproved /></WithLayout>} />
         </Routes>
       </BrowserRouter>
     </ToastProvider>

@@ -57,7 +57,7 @@ app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 // Admin route: Get all pending withdrawal requests
 import { query } from './db.js';
-app.get('/api/admin/pending-withdrawals', async (req, res) => {
+app.get('/api/admin/pending-withdrawals', authRequired, adminRequired, async (req, res) => {
   try {
     // TODO: Add authentication/authorization for admin
     const sql = `SELECT t.*, c.tiktok_username, c.display_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id WHERE t.transaction_type = 'withdrawal' AND t.status = 'pending' ORDER BY t.created_date DESC`;
@@ -69,13 +69,17 @@ app.get('/api/admin/pending-withdrawals', async (req, res) => {
 });
 
 // Admin route: Approve withdrawal
-app.post('/api/admin/approve-withdrawal', async (req, res) => {
+app.post('/api/admin/approve-withdrawal', authRequired, adminRequired, async (req, res) => {
   try {
-    const { withdrawalId } = req.body;
-    if (!withdrawalId || isNaN(Number(withdrawalId))) {
-      return res.status(400).json({ error: 'Missing or invalid withdrawalId' });
+    const { withdrawalId } = req.body || {};
+    console.log('[approve-withdrawal] received body:', req.body);
+    // IDs are UUIDs in this schema; validate using zod
+    try {
+      z.string().uuid().parse(withdrawalId);
+    } catch (e) {
+      return res.status(400).json({ error: 'Missing or invalid withdrawalId (expected UUID)' });
     }
-    const updated = await approveWithdrawal(withdrawalId);
+    const updated = await approveWithdrawal(withdrawalId, req.user?.sub || null);
     if (!updated) {
       console.error(`[approve-withdrawal] Not found or not pending: withdrawalId=${withdrawalId}`);
       return res.status(404).json({ error: 'Withdrawal not found or not pending' });
@@ -88,10 +92,14 @@ app.post('/api/admin/approve-withdrawal', async (req, res) => {
 });
 
 // Admin route: Decline (reject) withdrawal
-app.post('/api/admin/decline-withdrawal', async (req, res) => {
+app.post('/api/admin/decline-withdrawal', authRequired, adminRequired, async (req, res) => {
   try {
-    const { withdrawalId } = req.body;
-    if (!withdrawalId) return res.status(400).json({ error: 'Missing withdrawalId' });
+    const { withdrawalId } = req.body || {};
+    try {
+      z.string().uuid().parse(withdrawalId);
+    } catch (e) {
+      return res.status(400).json({ error: 'Missing or invalid withdrawalId (expected UUID)' });
+    }
     // Only allow declining withdrawals that are currently pending
     const result = await query(
       `UPDATE transactions SET status = 'failed' WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
@@ -104,6 +112,125 @@ app.post('/api/admin/decline-withdrawal', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Admin: list withdrawals this admin approved
+app.get('/api/admin/my-approved-withdrawals', authRequired, adminRequired, async (req, res) => {
+  try {
+    // Server-side pagination and optional date range filters
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(200, Math.max(10, Number(req.query.limit || 24)));
+    const offset = (page - 1) * limit;
+    const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
+    const dateTo = req.query.date_to ? new Date(req.query.date_to) : null;
+    const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
+    const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
+    const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
+    // sort: approved_at, amount, created_date, default approved_at desc
+    const sort = String(req.query.sort || 'approved_at:desc');
+
+    const whereClauses = ['t.transaction_type = \'withdrawal\'', 't.approved_by = $1'];
+    const params = [req.user.sub];
+    let idx = 2;
+    if (dateFrom) {
+      whereClauses.push(`t.approved_at >= $${idx}`);
+      params.push(dateFrom.toISOString());
+      idx++;
+    }
+    if (dateTo) {
+      // include the full day by adding 1 day to dateTo if time not provided
+      whereClauses.push(`t.approved_at <= $${idx}`);
+      params.push(dateTo.toISOString());
+      idx++;
+    }
+    if (amountMin !== null && !isNaN(amountMin)) {
+      whereClauses.push(`t.amount >= $${idx}`);
+      params.push(amountMin);
+      idx++;
+    }
+    if (amountMax !== null && !isNaN(amountMax)) {
+      whereClauses.push(`t.amount <= $${idx}`);
+      params.push(amountMax);
+      idx++;
+    }
+    if (creatorSearch) {
+      whereClauses.push(`(c.tiktok_username ILIKE $${idx} OR c.display_name ILIKE $${idx} OR t.creator_id::text ILIKE $${idx})`);
+      params.push(`%${creatorSearch}%`);
+      idx++;
+    }
+
+    const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+    // parse sort param
+    let orderBy = 't.approved_at DESC';
+    try {
+      const [field, dir] = sort.split(':');
+      const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' };
+      if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`;
+    } catch {}
+
+    const dataSql = `SELECT t.*, c.tiktok_username, c.display_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+    const countSql = `SELECT COUNT(1) as total FROM transactions t ${where}`;
+
+    const dataResult = await query(dataSql, params);
+    const countResult = await query(countSql, params);
+    const total = Number(countResult.rows[0]?.total || 0);
+
+    res.json({ withdrawals: dataResult.rows, page, pageSize: limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CSV export - streams matched results (respects same filters but returns a CSV)
+app.get('/api/admin/my-approved-withdrawals/export', authRequired, adminRequired, async (req, res) => {
+  try {
+    const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
+    const dateTo = req.query.date_to ? new Date(req.query.date_to) : null;
+    const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
+    const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
+    const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
+    const sort = String(req.query.sort || 'approved_at:desc');
+
+    const whereClauses = ['t.transaction_type = \'withdrawal\'', 't.approved_by = $1'];
+    const params = [req.user.sub];
+    let idx = 2;
+    if (dateFrom) { whereClauses.push(`t.approved_at >= $${idx}`); params.push(dateFrom.toISOString()); idx++; }
+    if (dateTo) { whereClauses.push(`t.approved_at <= $${idx}`); params.push(dateTo.toISOString()); idx++; }
+    if (amountMin !== null && !isNaN(amountMin)) { whereClauses.push(`t.amount >= $${idx}`); params.push(amountMin); idx++; }
+    if (amountMax !== null && !isNaN(amountMax)) { whereClauses.push(`t.amount <= $${idx}`); params.push(amountMax); idx++; }
+    if (creatorSearch) { whereClauses.push(`(c.tiktok_username ILIKE $${idx} OR c.display_name ILIKE $${idx} OR t.creator_id::text ILIKE $${idx})`); params.push(`%${creatorSearch}%`); idx++; }
+    const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+    let orderBy = 't.approved_at DESC';
+    try { const [field, dir] = sort.split(':'); const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
+
+    const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy}`;
+
+    // Stream CSV response
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="approved-withdrawals-${Date.now()}.csv"`);
+
+    // Write header
+    res.write('id,creator_id,tiktok_username,display_name,amount,momo_number,approved_at\n');
+
+    const streamQuery = await pool.query(new (require('pg').Query)(sql, params));
+    for (const row of streamQuery.rows) {
+      const line = `${row.id},${row.creator_id},${csvEscape(row.tiktok_username)},${csvEscape(row.display_name)},${row.amount},${csvEscape(row.momo_number)},${row.approved_at}\n`;
+      res.write(line);
+    }
+    res.end();
+  } catch (err) {
+    console.error('[export] error', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+function csvEscape(s) {
+  if (s === null || typeof s === 'undefined') return '';
+  const str = String(s).replace(/"/g, '""');
+  if (str.includes(',') || str.includes('\n') || str.includes('"')) return `"${str}"`;
+  return str;
+}
 // Capture raw body for Paystack webhook signature verification while still parsing JSON normally elsewhere
 app.use((req, res, next) => {
   const isPaystackWebhook = req.url.startsWith('/api/paystack/webhook') || req.url.startsWith('/api/payments/paystack/webhook');
@@ -245,6 +372,20 @@ function authRequired(req, res, next) {
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+// Require the authenticated user to be an admin (checks users.role)
+async function adminRequired(req, res, next) {
+  try {
+    if (!req.user || !req.user.sub) return res.status(401).json({ error: 'Unauthorized' });
+    const r = await pool.query('SELECT role FROM users WHERE id = $1', [req.user.sub]);
+    const user = r.rows[0];
+    if (!user || user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    next();
+  } catch (e) {
+    console.error('[adminRequired] error', e);
+    return res.status(500).json({ error: 'Server error' });
   }
 }
 

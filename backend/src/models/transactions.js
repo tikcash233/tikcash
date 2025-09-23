@@ -1,16 +1,3 @@
-// Admin: Approve withdrawal (mark as sent)
-export async function approveWithdrawal(withdrawalId) {
-  // Only allow approving withdrawals that are currently pending
-  const res = await query(
-    `UPDATE transactions SET status = 'approved' WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
-    [withdrawalId]
-  );
-  const tx = res.rows[0] || null;
-  if (tx) {
-    try { emitTransactionEvent(tx); } catch (e) { console.warn('[approveWithdrawal] emit failed', e?.message || e); }
-  }
-  return tx;
-}
 import { query, withTransaction } from '../db.js';
 import { emitTransactionEvent } from '../events.js';
 import { parseNumericFields } from '../utils.js';
@@ -48,6 +35,26 @@ export async function createTransaction(data) {
   const sql = `INSERT INTO transactions(${cols.join(',')}) VALUES(${vals.join(',')}) RETURNING *`;
   const res = await query(sql, params);
   return res.rows[0];
+}
+
+// Admin: Approve withdrawal (mark as sent)
+export async function approveWithdrawal(withdrawalId, approverId = null) {
+  try {
+    // Only allow approving withdrawals that are currently pending
+    const now = new Date().toISOString();
+    const res = await query(
+      `UPDATE transactions SET status = 'completed', approved_by = $2, approved_at = $3 WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
+      [withdrawalId, approverId, now]
+    );
+    const tx = res.rows[0] || null;
+    if (tx) {
+      try { emitTransactionEvent(tx); } catch (e) { console.warn('[approveWithdrawal] emit failed', e?.message || e); }
+    }
+    return tx;
+  } catch (err) {
+    console.error('[approveWithdrawal] DB error:', err?.message || err);
+    throw err;
+  }
 }
 
 // Helper to compute fees. All amounts are numbers (GHS). Returns rounded 2-decimal values.
