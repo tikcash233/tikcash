@@ -66,6 +66,37 @@ app.get('/api/admin/pending-withdrawals', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Admin route: Approve withdrawal
+app.post('/api/admin/approve-withdrawal', async (req, res) => {
+  try {
+    const { withdrawalId } = req.body;
+    if (!withdrawalId) return res.status(400).json({ error: 'Missing withdrawalId' });
+    const updated = await approveWithdrawal(withdrawalId);
+    if (!updated) return res.status(404).json({ error: 'Withdrawal not found or not pending' });
+    res.json({ ok: true, withdrawal: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin route: Decline (reject) withdrawal
+app.post('/api/admin/decline-withdrawal', async (req, res) => {
+  try {
+    const { withdrawalId } = req.body;
+    if (!withdrawalId) return res.status(400).json({ error: 'Missing withdrawalId' });
+    // Only allow declining withdrawals that are currently pending
+    const result = await query(
+      `UPDATE transactions SET status = 'failed' WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
+      [withdrawalId]
+    );
+    const updated = result.rows[0];
+    if (!updated) return res.status(404).json({ error: 'Withdrawal not found or not pending' });
+    res.json({ ok: true, withdrawal: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // Capture raw body for Paystack webhook signature verification while still parsing JSON normally elsewhere
 app.use((req, res, next) => {
   const isPaystackWebhook = req.url.startsWith('/api/paystack/webhook') || req.url.startsWith('/api/payments/paystack/webhook');
