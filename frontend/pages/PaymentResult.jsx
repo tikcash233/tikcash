@@ -11,6 +11,7 @@ export default function PaymentResult() {
   const [verifying, setVerifying] = useState(false);
 
   const webhookRef = useRef(false);
+  const lastSseAtRef = useRef(0);
   useEffect(() => {
     // fetch config to know if webhook is enabled
     fetch('/api/config').then(r => r.json()).then(c => { webhookRef.current = !!c.webhookEnabled; }).catch(()=>{});
@@ -21,6 +22,10 @@ export default function PaymentResult() {
     let cancelled = false;
     // Open SSE stream for instant status updates
     let es;
+    // If webhook is not enabled, we'll attempt a few automatic server-side verifications
+    // to avoid requiring the user to click the "Verify" button. This is rate-limited
+    // locally to avoid spamming the Paystack verify API.
+    let verifyAttempts = 0;
     try {
       const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
         ? import.meta.env.VITE_API_URL
@@ -31,6 +36,7 @@ export default function PaymentResult() {
         try {
           const data = JSON.parse(evt.data);
           if (data.reference === ref) {
+            lastSseAtRef.current = Date.now();
             setStatus(data.status);
             if (data.status === 'completed') {
               es.close();
@@ -51,7 +57,22 @@ export default function PaymentResult() {
         if (cancelled) return;
         setStatus(j.status);
         if (j.status === 'pending') {
-          // If webhooks enabled we expect a quick update, keep polling; else slow down after a few tries
+          // If the SSE stream hasn't reported activity for this ref recently, attempt a limited number
+          // of auto-verifications (covers cases where webhooks are enabled but the SSE didn't arrive).
+          const sseStale = !lastSseAtRef.current || (Date.now() - lastSseAtRef.current) > 3000;
+          if (sseStale && verifyAttempts < 3) {
+            verifyAttempts += 1;
+            try {
+              await new Promise(r => setTimeout(r, 1200));
+              const vv = await fetch(`/api/payments/paystack/verify/${encodeURIComponent(ref)}`);
+              const vj = await vv.json().catch(() => ({}));
+              if (vj && vj.status) {
+                setStatus(vj.status);
+                if (vj.status === 'completed') return; // done
+              }
+            } catch {}
+          }
+          // Continue polling; if webhooks enabled, poll faster to catch webhook-driven changes
           setTimeout(poll, webhookRef.current ? 2000 : 4000);
         }
       } catch {
