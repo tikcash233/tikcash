@@ -14,10 +14,18 @@ export default function AdminDashboard() {
     fetchWithdrawals();
   }, []);
 
+  // Helper to get token from localStorage (or wherever you store it)
+  function getToken() {
+    return localStorage.getItem('tikcash_token') || '';
+  }
+
   async function fetchWithdrawals() {
     setLoading(true);
     try {
-  const res = await axios.get('/api/admin/pending-withdrawals');
+      const res = await axios.get('/api/admin/pending-withdrawals', {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        withCredentials: true,
+      });
       setWithdrawals(Array.isArray(res.data.withdrawals) ? res.data.withdrawals : []);
       setError(null);
     } catch (err) {
@@ -30,7 +38,10 @@ export default function AdminDashboard() {
   async function approveWithdrawal(id) {
     setApproving((prev) => ({ ...prev, [id]: true }));
     try {
-  await axios.post('/api/admin/approve-withdrawal', { withdrawalId: id });
+      await axios.post('/api/admin/approve-withdrawal', { withdrawalId: id }, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        withCredentials: true,
+      });
       fetchWithdrawals();
     } catch (err) {
       alert('Failed to approve withdrawal');
@@ -42,7 +53,10 @@ export default function AdminDashboard() {
   async function declineWithdrawal(id) {
     setDeclining((prev) => ({ ...prev, [id]: true }));
     try {
-  await axios.post('/api/admin/decline-withdrawal', { withdrawalId: id });
+      await axios.post('/api/admin/decline-withdrawal', { withdrawalId: id }, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        withCredentials: true,
+      });
       fetchWithdrawals();
     } catch (err) {
       alert('Failed to decline withdrawal');

@@ -29,7 +29,8 @@ export default function AdminApproved() {
       if (amountMax) params.amount_max = amountMax;
       if (creatorSearch) params.creator_search = creatorSearch;
       if (sort) params.sort = sort;
-      const res = await axios.get('/api/admin/my-approved-withdrawals', { params });
+  const token = localStorage.getItem('tikcash_token') || '';
+  const res = await axios.get('/api/admin/approved-withdrawals', { params, headers: { Authorization: `Bearer ${token}` }, withCredentials: true });
       setWithdrawals(res.data.withdrawals || []);
       setTotalPages(res.data.totalPages || 1);
     } catch (err) {
@@ -48,7 +49,26 @@ export default function AdminApproved() {
       if (creatorSearch) params.creator_search = creatorSearch;
       if (sort) params.sort = sort;
       const qp = new URLSearchParams(params).toString();
-      window.open(`/api/admin/my-approved-withdrawals/export?${qp}`, '_blank');
+      // Use fetch so we can include Authorization header (window.open can't set headers)
+      try {
+    const token = localStorage.getItem('tikcash_token') || '';
+  const exportUrl = `/api/admin/approved-withdrawals/export?${qp}`;
+  const resp = await fetch(exportUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+        });
+        if (!resp.ok) {
+          console.error('Export failed', resp.status);
+          return;
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `approved-withdrawals-${Date.now()}.csv`; a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Export error', e);
+      }
       return;
     }
     if (!withdrawals || withdrawals.length === 0) return;
@@ -73,6 +93,7 @@ export default function AdminApproved() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 mb-4 items-end">
+      
         <div>
           <label className="text-sm block mb-1">Date range</label>
           <div className="flex gap-2">
@@ -105,15 +126,24 @@ export default function AdminApproved() {
       {loading ? <div>Loading...</div> : (
         <div className="space-y-4">
           {withdrawals.map(w => (
-            <div key={w.id} className="p-4 rounded-lg border bg-white flex justify-between items-center">
-              <div>
-                <div className="font-semibold">{w.display_name || w.tiktok_username || w.creator_id}</div>
-                <div className="text-sm text-gray-500">{w.tiktok_username ? `@${w.tiktok_username}` : ''} • {w.momo_number}</div>
-                <div className="text-xs text-gray-400">Requested: {new Date(w.created_date).toLocaleString()}</div>
+            <div key={w.id} className="bg-white rounded-xl shadow-lg p-5 flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-100">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="inline-block px-2 py-1 rounded bg-blue-50 text-blue-700 font-mono text-xs">{w.tiktok_username || '-'}</span>
+                  <span className="font-bold text-lg text-gray-900">{w.display_name || '-'}</span>
+                </div>
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                  <span className="font-semibold text-green-700">GH₵ {Math.abs(Number(w.amount || 0)).toFixed(2)}</span>
+                  <span className="">Mobile: <span className="font-mono text-gray-800">{w.momo_number}</span></span>
+                  <span className="">Requested: <span className="text-gray-500">{new Date(w.created_date).toLocaleString()}</span></span>
+                  <span className="inline-block px-2 py-1 rounded-full bg-green-50 text-green-700 font-semibold text-xs">Approved</span>
+                </div>
               </div>
-              <div className="text-right">
-                <div className="font-mono text-lg text-gray-800">GH₵ {Math.abs(Number(w.amount || 0)).toFixed(2)}</div>
-                <div className="text-sm text-gray-500">Approved: {formatDate(w.approved_at)}</div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="text-right">
+                  <div className="font-mono text-lg text-gray-800">GH₵ {Math.abs(Number(w.amount || 0)).toFixed(2)}</div>
+                  <div className="text-sm text-gray-500">Approved: {formatDate(w.approved_at)}</div>
+                </div>
               </div>
             </div>
           ))}

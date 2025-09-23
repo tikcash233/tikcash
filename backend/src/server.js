@@ -7,7 +7,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import { pool, getPoolStats, closePool } from './db.js'; // Fixed import
+import { pool, getPoolStats, closePool, query } from './db.js'; // Fixed import
 import { z } from 'zod';
 import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema, RequestVerifySchema, VerifyCodeSchema, ResetWithPinSchema, ChangePasswordSchema } from './schemas.js';
 import bcrypt from 'bcryptjs';
@@ -20,9 +20,23 @@ import crypto from 'node:crypto';
 import http from 'http';
 import { createClient } from '@supabase/supabase-js';
 import multer from 'multer';
-
-// Load environment variables early so createClient can read them
 dotenv.config();
+
+// Ensure JWT_SECRET is available. Use a clear dev fallback but fail-fast in production.
+const JWT_SECRET = process.env.JWT_SECRET || null;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('FATAL: JWT_SECRET environment variable is required in production.');
+    process.exit(1);
+  } else {
+    console.warn('Warning: JWT_SECRET is not set. Using a temporary insecure fallback for development only. Set JWT_SECRET in .env to remove this warning.');
+    // Use a predictable fallback for local development to avoid runtime ReferenceError
+    // NOTE: This is intentionally insecure and should NOT be used in production.
+    // Keep this short so developers still have to set a real secret.
+    // eslint-disable-next-line no-process-env
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+  }
+}
 
 // Multer setup for file uploads (use memoryStorage so req.file.buffer exists)
 const upload = multer({
@@ -36,8 +50,9 @@ const upload = multer({
   }
 });
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Supabase client (used for profile pictures)
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Activity tracking for smart resource management
@@ -56,7 +71,6 @@ app.use(helmet());
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 // Admin route: Get all pending withdrawal requests
-import { query } from './db.js';
 app.get('/api/admin/pending-withdrawals', authRequired, adminRequired, async (req, res) => {
   try {
     // TODO: Add authentication/authorization for admin
@@ -71,8 +85,7 @@ app.get('/api/admin/pending-withdrawals', authRequired, adminRequired, async (re
 // Admin route: Approve withdrawal
 app.post('/api/admin/approve-withdrawal', authRequired, adminRequired, async (req, res) => {
   try {
-    const { withdrawalId } = req.body || {};
-    console.log('[approve-withdrawal] received body:', req.body);
+  const { withdrawalId } = req.body || {};
     // IDs are UUIDs in this schema; validate using zod
     try {
       z.string().uuid().parse(withdrawalId);
@@ -104,10 +117,10 @@ app.post('/api/admin/decline-withdrawal', authRequired, adminRequired, async (re
     const result = await query(
       `UPDATE transactions SET status = 'failed' WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
       [withdrawalId]
-    );
-    const updated = result.rows[0];
-    if (!updated) return res.status(404).json({ error: 'Withdrawal not found or not pending' });
-    res.json({ ok: true, withdrawal: updated });
+      );
+      const updated = result.rows[0];
+      if (!updated) return res.status(404).json({ error: 'Withdrawal not found or not pending' });
+      res.json({ ok: true, withdrawal: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -121,7 +134,15 @@ app.get('/api/admin/my-approved-withdrawals', authRequired, adminRequired, async
     const limit = Math.min(200, Math.max(10, Number(req.query.limit || 24)));
     const offset = (page - 1) * limit;
     const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
-    const dateTo = req.query.date_to ? new Date(req.query.date_to) : null;
+    // If caller passed a date-only string (YYYY-MM-DD) as date_to, include the whole day by adding one day.
+    let dateTo = null;
+    if (req.query.date_to) {
+      dateTo = new Date(req.query.date_to);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date_to))) {
+        // add one day so the filter is inclusive of the entire 'to' date
+        dateTo.setDate(dateTo.getDate() + 1);
+      }
+    }
     const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
     const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
     const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
@@ -161,7 +182,7 @@ app.get('/api/admin/my-approved-withdrawals', authRequired, adminRequired, async
     const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
     // parse sort param
-    let orderBy = 't.approved_at DESC';
+  let orderBy = 'COALESCE(t.approved_at, t.created_date) DESC';
     try {
       const [field, dir] = sort.split(':');
       const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' };
@@ -181,11 +202,102 @@ app.get('/api/admin/my-approved-withdrawals', authRequired, adminRequired, async
   }
 });
 
+// Admin: list all approved withdrawals (not restricted to the approving admin)
+app.get('/api/admin/approved-withdrawals', authRequired, adminRequired, async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(200, Math.max(10, Number(req.query.limit || 24)));
+    const offset = (page - 1) * limit;
+    const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
+    let dateTo = null;
+    if (req.query.date_to) {
+      dateTo = new Date(req.query.date_to);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date_to))) dateTo.setDate(dateTo.getDate() + 1);
+    }
+    const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
+    const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
+    const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
+    const sort = String(req.query.sort || 'approved_at:desc');
+
+    const whereClauses = ["t.transaction_type = 'withdrawal'", "t.status = 'completed'"];
+    const params = [];
+    let idx = 1;
+    if (dateFrom) { whereClauses.push(`t.approved_at >= $${idx}`); params.push(dateFrom.toISOString()); idx++; }
+    if (dateTo) { whereClauses.push(`t.approved_at <= $${idx}`); params.push(dateTo.toISOString()); idx++; }
+    if (amountMin !== null && !isNaN(amountMin)) { whereClauses.push(`t.amount >= $${idx}`); params.push(amountMin); idx++; }
+    if (amountMax !== null && !isNaN(amountMax)) { whereClauses.push(`t.amount <= $${idx}`); params.push(amountMax); idx++; }
+    if (creatorSearch) { whereClauses.push(`(c.tiktok_username ILIKE $${idx} OR c.display_name ILIKE $${idx} OR t.creator_id::text ILIKE $${idx})`); params.push(`%${creatorSearch}%`); idx++; }
+
+    const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+  let orderBy = 'COALESCE(t.approved_at, t.created_date) DESC';
+    try { const [field, dir] = sort.split(':'); const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
+
+    const dataSql = `SELECT t.*, c.tiktok_username, c.display_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+    const countSql = `SELECT COUNT(1) as total FROM transactions t ${where}`;
+
+    const dataResult = await query(dataSql, params);
+    const countResult = await query(countSql, params);
+    const total = Number(countResult.rows[0]?.total || 0);
+    res.json({ withdrawals: dataResult.rows, page, pageSize: limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CSV export for all approved withdrawals
+app.get('/api/admin/approved-withdrawals/export', authRequired, adminRequired, async (req, res) => {
+  try {
+    const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
+    let dateTo = null;
+    if (req.query.date_to) { dateTo = new Date(req.query.date_to); if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date_to))) dateTo.setDate(dateTo.getDate() + 1); }
+    const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
+    const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
+    const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
+    const sort = String(req.query.sort || 'approved_at:desc');
+
+    const whereClauses = ["t.transaction_type = 'withdrawal'", "t.status = 'completed'"];
+    const params = [];
+    let idx = 1;
+    if (dateFrom) { whereClauses.push(`t.approved_at >= $${idx}`); params.push(dateFrom.toISOString()); idx++; }
+    if (dateTo) { whereClauses.push(`t.approved_at <= $${idx}`); params.push(dateTo.toISOString()); idx++; }
+    if (amountMin !== null && !isNaN(amountMin)) { whereClauses.push(`t.amount >= $${idx}`); params.push(amountMin); idx++; }
+    if (amountMax !== null && !isNaN(amountMax)) { whereClauses.push(`t.amount <= $${idx}`); params.push(amountMax); idx++; }
+    if (creatorSearch) { whereClauses.push(`(c.tiktok_username ILIKE $${idx} OR c.display_name ILIKE $${idx} OR t.creator_id::text ILIKE $${idx})`); params.push(`%${creatorSearch}%`); idx++; }
+    const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+  let orderBy = 'COALESCE(t.approved_at, t.created_date) DESC';
+    try { const [field, dir] = sort.split(':'); const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
+
+    const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy}`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="approved-withdrawals-${Date.now()}.csv"`);
+    // Write CSV header
+    res.write('id,creator_id,tiktok_username,display_name,amount,momo_number,approved_at\n');
+    // Execute query and stream rows
+    const result = await query(sql, params);
+    for (const row of result.rows) {
+      const line = `${row.id},${row.creator_id},${csvEscape(row.tiktok_username)},${csvEscape(row.display_name)},${row.amount},${csvEscape(row.momo_number)},${row.approved_at}\n`;
+      res.write(line);
+    }
+    res.end();
+  } catch (err) {
+    console.error('[approved export] error', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // CSV export - streams matched results (respects same filters but returns a CSV)
 app.get('/api/admin/my-approved-withdrawals/export', authRequired, adminRequired, async (req, res) => {
   try {
     const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
-    const dateTo = req.query.date_to ? new Date(req.query.date_to) : null;
+    // make date_to inclusive of the whole day when a bare date (YYYY-MM-DD) is used
+    let dateTo = null;
+    if (req.query.date_to) {
+      dateTo = new Date(req.query.date_to);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date_to))) {
+        dateTo.setDate(dateTo.getDate() + 1);
+      }
+    }
     const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
     const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
     const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
@@ -209,12 +321,12 @@ app.get('/api/admin/my-approved-withdrawals/export', authRequired, adminRequired
     // Stream CSV response
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="approved-withdrawals-${Date.now()}.csv"`);
-
-    // Write header
+    // Write CSV header
     res.write('id,creator_id,tiktok_username,display_name,amount,momo_number,approved_at\n');
 
-    const streamQuery = await pool.query(new (require('pg').Query)(sql, params));
-    for (const row of streamQuery.rows) {
+    // Execute query and stream rows
+    const result = await query(sql, params);
+    for (const row of result.rows) {
       const line = `${row.id},${row.creator_id},${csvEscape(row.tiktok_username)},${csvEscape(row.display_name)},${row.amount},${csvEscape(row.momo_number)},${row.approved_at}\n`;
       res.write(line);
     }
@@ -293,19 +405,22 @@ if (process.env.NODE_ENV === 'production') {
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-      const p = req.path || '';
-      return (
-        p.startsWith('/api/paystack/webhook') ||
-        p.startsWith('/api/payments/paystack/webhook') ||
-        p.startsWith('/api/stream/')
-      );
-    }
-  });
-  app.use(limiter);
-}
-
-// Auth helpers
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+        const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
+        let dateTo = null;
+        if (req.query.date_to) {
+          dateTo = new Date(req.query.date_to);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date_to))) {
+            dateTo.setDate(dateTo.getDate() + 1);
+          }
+        }
+        const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
+        const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
+        const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
+        const sort = String(req.query.sort || 'approved_at:desc');
+      }
+    });
+    app.use(limiter);
+  }
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || '';
 const RESEND_SEND_IN_DEV = (process.env.RESEND_SEND_IN_DEV || 'false').toLowerCase() === 'true';
@@ -366,6 +481,7 @@ function authRequired(req, res, next) {
   const token = header.startsWith('Bearer ')
     ? header.slice(7)
     : (req.cookies?.token || null);
+  // (no-op) authentication check; token must be present in Authorization header or cookie
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
   try {
     req.user = jwt.verify(token, JWT_SECRET);
@@ -375,10 +491,22 @@ function authRequired(req, res, next) {
   }
 }
 
-// Require the authenticated user to be an admin (checks users.role)
+// Require the authenticated user to be an admin. Support a single-admin override via env vars
+// ADMIN_USER_EMAIL or ADMIN_USER_ID (useful for small deployments where there's only one admin)
 async function adminRequired(req, res, next) {
   try {
     if (!req.user || !req.user.sub) return res.status(401).json({ error: 'Unauthorized' });
+
+    const envAdminEmail = (process.env.ADMIN_USER_EMAIL || '').toLowerCase().trim() || null;
+    const envAdminId = (process.env.ADMIN_USER_ID || '').trim() || null;
+
+    // If ADMIN_USER_ID is configured and matches the token subject, allow immediately
+    if (envAdminId && String(req.user.sub) === envAdminId) return next();
+
+    // If ADMIN_USER_EMAIL is configured and matches token email, allow immediately
+    if (envAdminEmail && req.user.email && String(req.user.email).toLowerCase() === envAdminEmail) return next();
+
+    // Otherwise, check the user's role in the database as normal
     const r = await pool.query('SELECT role FROM users WHERE id = $1', [req.user.sub]);
     const user = r.rows[0];
     if (!user || user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
@@ -414,12 +542,15 @@ const VERIFY_EMAIL = (process.env.VERIFY_EMAIL || 'false').toLowerCase() === 'tr
 app.post('/api/auth/register', async (req, res, next) => {
   try {
     const data = RegisterSchema.parse(req.body);
-    const { email, password, name, role, recovery_pin } = data;
+  const { email, password, name, role, recovery_pin } = data;
+  // If an ADMIN_USER_EMAIL is configured, auto-assign that email the admin role
+  const envAdminEmail = (process.env.ADMIN_USER_EMAIL || '').toLowerCase().trim() || null;
+  const effectiveRole = (envAdminEmail && String(email).toLowerCase() === envAdminEmail) ? 'admin' : (role || 'supporter');
     const hashed = await bcrypt.hash(password, 10);
     const pinHash = await bcrypt.hash(recovery_pin, 10);
     const r = await pool.query(
       'INSERT INTO users(email, password_hash, name, role, email_verified, recovery_pin_hash) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT (email) DO NOTHING RETURNING id, email, name, role, email_verified, created_at',
-      [email.toLowerCase(), hashed, name || null, role || 'supporter', VERIFY_EMAIL ? false : true, pinHash]
+      [email.toLowerCase(), hashed, name || null, effectiveRole, VERIFY_EMAIL ? false : true, pinHash]
     );
     const user = r.rows[0];
     if (!user) return res.status(409).json({ error: 'Email already in use.' });
@@ -930,15 +1061,15 @@ app.get('/openapi.json', (req, res) => {
     info: { title: "TikCash API", version: "1.0.0" },
     paths: {
       "/health": { get: { summary: "Health check", responses: { "200": { description: "OK" } } } },
-  "/api/auth/register": { post: { summary: "Register", requestBody: {}, responses: { "201": { description: "Created" } } } },
-  "/api/auth/login": { post: { summary: "Login", requestBody: {}, responses: { "200": { description: "OK" } } } },
-  "/api/auth/me": { get: { summary: "Me", responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } } } },
+      "/api/auth/register": { post: { summary: "Register", requestBody: {}, responses: { "201": { description: "Created" } } } },
+      "/api/auth/login": { post: { summary: "Login", requestBody: {}, responses: { "200": { description: "OK" } } } },
+      "/api/auth/me": { get: { summary: "Me", responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } } } },
       "/api/creators": {
         get: { summary: "List creators", parameters: [], responses: { "200": { description: "List" } } },
-  post: { summary: "Create creator (auth + verified required)", requestBody: {}, responses: { "201": { description: "Created" }, "401": { description: "Unauthorized" }, "403": { description: "Email not verified" } } }
+        post: { summary: "Create creator (auth + verified required)", requestBody: {}, responses: { "201": { description: "Created" }, "401": { description: "Unauthorized" }, "403": { description: "Email not verified" } } }
       },
-  "/api/auth/request-verify": { post: { summary: "Request email verification code", requestBody: {}, responses: { "200": { description: "OK" } } } },
-  "/api/auth/verify": { post: { summary: "Verify email code", requestBody: {}, responses: { "200": { description: "OK" } } } },
+      "/api/auth/request-verify": { post: { summary: "Request email verification code", requestBody: {}, responses: { "200": { description: "OK" } } } },
+      "/api/auth/verify": { post: { summary: "Verify email code", requestBody: {}, responses: { "200": { description: "OK" } } } },
       "/api/creators/{id}": {
         get: { summary: "Get creator", parameters: [], responses: { "200": { description: "Creator" } } },
         patch: { summary: "Update creator", requestBody: {}, responses: { "200": { description: "Updated" } } }
@@ -948,8 +1079,7 @@ app.get('/openapi.json', (req, res) => {
       },
       "/api/transactions": {
         post: { summary: "Create transaction", requestBody: {}, responses: { "201": { description: "Created" } } }
-      }
-      ,
+      },
       "/api/auth/reset-with-pin": {
         post: { summary: "Reset password with 4-digit PIN", requestBody: {}, responses: { "200": { description: "OK" } } }
       },
@@ -958,16 +1088,16 @@ app.get('/openapi.json', (req, res) => {
       }
     }
   });
+});
 
-  // List creators the current supporter has supported (distinct), ordered by last tip date
-  app.get('/api/me/creators', authRequired, async (req, res, next) => {
-    try {
-      const page = Number(req.query.page || '1');
-      const limit = Number(req.query.limit || '24');
-      const data = await listCreatorsSupportedByUser(req.user.sub, { page, limit });
-      res.json({ data, page, pageSize: limit, hasMore: Array.isArray(data) ? data.length >= limit : false });
-    } catch (e) { next(e); }
-  });
+// List creators the current supporter has supported (distinct), ordered by last tip date
+app.get('/api/me/creators', authRequired, async (req, res, next) => {
+  try {
+    const page = Number(req.query.page || '1');
+    const limit = Number(req.query.limit || '24');
+    const data = await listCreatorsSupportedByUser(req.user.sub, { page, limit });
+    res.json({ data, page, pageSize: limit, hasMore: Array.isArray(data) ? data.length >= limit : false });
+  } catch (e) { next(e); }
 });
 
 // Error handler
