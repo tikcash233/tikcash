@@ -5,7 +5,11 @@ export async function approveWithdrawal(withdrawalId) {
     `UPDATE transactions SET status = 'approved' WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
     [withdrawalId]
   );
-  return res.rows[0] || null;
+  const tx = res.rows[0] || null;
+  if (tx) {
+    try { emitTransactionEvent(tx); } catch (e) { console.warn('[approveWithdrawal] emit failed', e?.message || e); }
+  }
+  return tx;
 }
 import { query, withTransaction } from '../db.js';
 import { emitTransactionEvent } from '../events.js';

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+// Use relative API paths for Vite proxy
 
 export default function AdminDashboard() {
   const [withdrawals, setWithdrawals] = useState([]);
@@ -16,7 +17,7 @@ export default function AdminDashboard() {
   async function fetchWithdrawals() {
     setLoading(true);
     try {
-      const res = await axios.get('/api/admin/pending-withdrawals');
+  const res = await axios.get('/api/admin/pending-withdrawals');
       setWithdrawals(Array.isArray(res.data.withdrawals) ? res.data.withdrawals : []);
       setError(null);
     } catch (err) {
@@ -29,7 +30,7 @@ export default function AdminDashboard() {
   async function approveWithdrawal(id) {
     setApproving((prev) => ({ ...prev, [id]: true }));
     try {
-      await axios.post('/api/admin/approve-withdrawal', { withdrawalId: id });
+  await axios.post('/api/admin/approve-withdrawal', { withdrawalId: id });
       fetchWithdrawals();
     } catch (err) {
       alert('Failed to approve withdrawal');
@@ -41,7 +42,7 @@ export default function AdminDashboard() {
   async function declineWithdrawal(id) {
     setDeclining((prev) => ({ ...prev, [id]: true }));
     try {
-      await axios.post('/api/admin/decline-withdrawal', { withdrawalId: id });
+  await axios.post('/api/admin/decline-withdrawal', { withdrawalId: id });
       fetchWithdrawals();
     } catch (err) {
       alert('Failed to decline withdrawal');

@@ -54,6 +54,7 @@ const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(compression());
+app.use(express.json({ limit: '1mb' }));
 // Admin route: Get all pending withdrawal requests
 import { query } from './db.js';
 app.get('/api/admin/pending-withdrawals', async (req, res) => {
@@ -71,11 +72,17 @@ app.get('/api/admin/pending-withdrawals', async (req, res) => {
 app.post('/api/admin/approve-withdrawal', async (req, res) => {
   try {
     const { withdrawalId } = req.body;
-    if (!withdrawalId) return res.status(400).json({ error: 'Missing withdrawalId' });
+    if (!withdrawalId || isNaN(Number(withdrawalId))) {
+      return res.status(400).json({ error: 'Missing or invalid withdrawalId' });
+    }
     const updated = await approveWithdrawal(withdrawalId);
-    if (!updated) return res.status(404).json({ error: 'Withdrawal not found or not pending' });
+    if (!updated) {
+      console.error(`[approve-withdrawal] Not found or not pending: withdrawalId=${withdrawalId}`);
+      return res.status(404).json({ error: 'Withdrawal not found or not pending' });
+    }
     res.json({ ok: true, withdrawal: updated });
   } catch (err) {
+    console.error('[approve-withdrawal] Internal error:', err);
     res.status(500).json({ error: err.message });
   }
 });
