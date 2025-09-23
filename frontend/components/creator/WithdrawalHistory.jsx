@@ -118,10 +118,12 @@ export default function WithdrawalHistory({ transactions = [] }) {
                           ? "bg-yellow-50 text-yellow-700"
                           : t.status === "failed"
                           ? "bg-red-50 text-red-700"
+                          : t.status === "approved"
+                          ? "bg-green-100 text-green-700 border border-green-400"
                           : "bg-green-50 text-green-700")
                       }
                     >
-                      {t.status || "pending"}
+                      {t.status === "approved" ? "Approved" : t.status || "pending"}
                     </span>
                   </div>
                 </li>

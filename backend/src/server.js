@@ -1,3 +1,5 @@
+// ...existing code...
+import { approveWithdrawal } from './models/transactions.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -52,6 +54,18 @@ const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(compression());
+// Admin route: Get all pending withdrawal requests
+import { query } from './db.js';
+app.get('/api/admin/pending-withdrawals', async (req, res) => {
+  try {
+    // TODO: Add authentication/authorization for admin
+    const sql = `SELECT t.*, c.tiktok_username, c.display_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id WHERE t.transaction_type = 'withdrawal' AND t.status = 'pending' ORDER BY t.created_date DESC`;
+    const result = await query(sql);
+    res.json({ withdrawals: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // Capture raw body for Paystack webhook signature verification while still parsing JSON normally elsewhere
 app.use((req, res, next) => {
   const isPaystackWebhook = req.url.startsWith('/api/paystack/webhook') || req.url.startsWith('/api/payments/paystack/webhook');

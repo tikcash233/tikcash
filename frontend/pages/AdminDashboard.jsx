@@ -1,0 +1,118 @@
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+export default function AdminDashboard() {
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [approving, setApproving] = useState({});
+  const [declining, setDeclining] = useState({});
+  const [confirmAction, setConfirmAction] = useState(null);
+
+  useEffect(() => {
+    fetchWithdrawals();
+  }, []);
+
+  async function fetchWithdrawals() {
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/admin/pending-withdrawals');
+      setWithdrawals(Array.isArray(res.data.withdrawals) ? res.data.withdrawals : []);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load withdrawals');
+      setWithdrawals([]);
+    }
+    setLoading(false);
+  }
+
+  async function approveWithdrawal(id) {
+    setApproving((prev) => ({ ...prev, [id]: true }));
+    try {
+      await axios.post('/api/admin/approve-withdrawal', { withdrawalId: id });
+      fetchWithdrawals();
+    } catch (err) {
+      alert('Failed to approve withdrawal');
+    }
+    setApproving((prev) => ({ ...prev, [id]: false }));
+    setConfirmAction(null);
+  }
+
+  async function declineWithdrawal(id) {
+    setDeclining((prev) => ({ ...prev, [id]: true }));
+    try {
+      await axios.post('/api/admin/decline-withdrawal', { withdrawalId: id });
+      fetchWithdrawals();
+    } catch (err) {
+      alert('Failed to decline withdrawal');
+    }
+    setDeclining((prev) => ({ ...prev, [id]: false }));
+    setConfirmAction(null);
+  }
+
+  return (
+    <div className="p-8 max-w-3xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">Admin: Pending Withdrawals</h1>
+      {loading && <div>Loading...</div>}
+      {!loading && error && <div className="text-red-500">{error}</div>}
+      {!loading && !error && withdrawals.length === 0 && (
+        <div className="text-gray-500">No pending withdrawals.</div>
+      )}
+      {!loading && !error && withdrawals.length > 0 && (
+        <div className="space-y-5">
+          {withdrawals.map(w => (
+            <div key={w.id} className="bg-white rounded-xl shadow-lg p-5 flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-100">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="inline-block px-2 py-1 rounded bg-blue-50 text-blue-700 font-mono text-xs">{w.tiktok_username || '-'}</span>
+                  <span className="font-bold text-lg text-gray-900">{w.display_name || '-'}</span>
+                </div>
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                  <span className="font-semibold text-green-700">GH₵ {Math.abs(w.amount)}</span>
+                  <span className="">Mobile: <span className="font-mono text-gray-800">{w.momo_number}</span></span>
+                  <span className="">Requested: <span className="text-gray-500">{new Date(w.created_date).toLocaleString()}</span></span>
+                  <span className="inline-block px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 font-semibold text-xs">Pending</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <button
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow disabled:opacity-50 w-full sm:w-auto transition"
+                  disabled={approving[w.id]}
+                  onClick={() => setConfirmAction({ type: 'approve', id: w.id })}
+                >
+                  {approving[w.id] ? 'Approving...' : 'Mark as Sent'}
+                </button>
+                <button
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow disabled:opacity-50 w-full sm:w-auto transition"
+                  disabled={declining[w.id]}
+                  onClick={() => setConfirmAction({ type: 'decline', id: w.id })}
+                >
+                  {declining[w.id] ? 'Declining...' : 'Decline'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Confirmation Dialog */}
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full">
+            <h2 className="text-lg font-bold mb-4">Confirm {confirmAction.type === 'approve' ? 'Approval' : 'Decline'}</h2>
+            <p className="mb-6">Are you sure you want to {confirmAction.type === 'approve' ? 'mark this withdrawal as sent/approved?' : 'decline this withdrawal?'} This action cannot be undone.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 rounded bg-gray-200 text-gray-800"
+                onClick={() => setConfirmAction(null)}
+              >Cancel</button>
+              <button
+                className={`px-4 py-2 rounded text-white ${confirmAction.type === 'approve' ? 'bg-green-600' : 'bg-red-600'}`}
+                onClick={() => confirmAction.type === 'approve' ? approveWithdrawal(confirmAction.id) : declineWithdrawal(confirmAction.id)}
+              >Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

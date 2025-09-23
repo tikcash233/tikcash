@@ -1,3 +1,12 @@
+// Admin: Approve withdrawal (mark as sent)
+export async function approveWithdrawal(withdrawalId) {
+  // Only allow approving withdrawals that are currently pending
+  const res = await query(
+    `UPDATE transactions SET status = 'approved' WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
+    [withdrawalId]
+  );
+  return res.rows[0] || null;
+}
 import { query, withTransaction } from '../db.js';
 import { emitTransactionEvent } from '../events.js';
 import { parseNumericFields } from '../utils.js';

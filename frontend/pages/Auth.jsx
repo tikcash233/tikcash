@@ -66,9 +66,13 @@ export default function Auth() {
         success('Account created.');
         navigate('/creator');
       } else {
-    await User.login({ email, password });
-    // success('Logged in.'); // Removed notification
-    navigate('/creator');
+        const user = await User.login({ email, password });
+        // success('Logged in.'); // Removed notification
+        if (user && user.role === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/creator');
+        }
       }
     } catch (e) {
       error('Auth failed. Check your details and try again.');
