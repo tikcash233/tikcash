@@ -1,6 +1,6 @@
--- Migration 0015: Switch fee model to platform_net=15% and paystack_fee=2%
+-- Migration 0015: Fee model migration (now using platform_net=18% and paystack_fee=2%)
 -- This migration recomputes transaction fee fields and updates creators aggregates using
--- the new model: platform_net = round(amount * 0.15, 2), paystack_fee = round(amount * 0.02, 2),
+-- the model: platform_net = round(amount * 0.18, 2), paystack_fee = round(amount * 0.02, 2),
 -- creator_amount = round(amount - platform_net - paystack_fee, 2), and platform_fee = platform_net + paystack_fee.
 BEGIN;
 
@@ -9,10 +9,10 @@ DO $$
 BEGIN
   UPDATE transactions
   SET
-    platform_fee = round(((amount * 0.15::numeric) + (amount * 0.02::numeric)), 2),
-    paystack_fee = round((amount * 0.02::numeric), 2),
-    creator_amount = round((amount - (amount * 0.15::numeric) - (amount * 0.02::numeric))::numeric, 2),
-    platform_net = round((amount * 0.15::numeric)::numeric, 2)
+  platform_fee = round(((amount * 0.18::numeric) + (amount * 0.02::numeric)), 2),
+  paystack_fee = round((amount * 0.02::numeric), 2),
+  creator_amount = round((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2),
+  platform_net = round((amount * 0.18::numeric)::numeric, 2)
   WHERE transaction_type = 'tip'
     AND status = 'completed'
     AND amount IS NOT NULL
@@ -25,7 +25,7 @@ $$;
 -- Recompute creators totals from transactions using new formula
 WITH tip_sums AS (
   SELECT creator_id,
-         COALESCE(SUM(ROUND((amount - (amount * 0.15::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
+         COALESCE(SUM(ROUND((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
   FROM transactions
   WHERE transaction_type = 'tip'
     AND status = 'completed'

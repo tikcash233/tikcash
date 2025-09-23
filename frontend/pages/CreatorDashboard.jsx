@@ -233,15 +233,15 @@ export default function CreatorDashboard() {
     // If the tip is HISTORICAL (created more than 2 minutes before page load), do not pulse or notify again.
     const createdTs = new Date(tip.created_date || Date.now()).getTime();
     const recentCutoff = Date.now() - 2 * 60 * 1000; // 2 minutes window counts as "new"
-  // Prefer server-provided creator_amount (net to creator). If it's missing (older rows),
-  // compute net as amount minus platform_net (15%) and paystack fee (2%) and round to 2 decimals.
+    // Prefer server-provided creator_amount (net to creator). If it's missing (older rows),
+    // compute net as amount minus platform_net (18%) and paystack fee (2%) and round to 2 decimals.
     const round2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
     let amt = 0;
     if (tip.creator_amount != null) {
       amt = Number(tip.creator_amount) || 0;
     } else {
       const raw = Number(tip.amount || 0) || 0;
-      amt = round2(raw - (raw * 0.15) - (raw * 0.02));
+      amt = round2(raw - (raw * 0.18) - (raw * 0.02));
       if (import.meta.env.DEV) console.debug('[balance] fallback computed creator_amount from amount', { id: tip.id, raw, amt });
     }
     if (!(amt > 0)) return;
@@ -267,7 +267,7 @@ export default function CreatorDashboard() {
   // Prefer creator_amount (net) when provided by backend; otherwise compute fallback net.
   const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
   const raw = Number(tip.amount || 0) || 0;
-  const net = Number(tip.creator_amount != null ? tip.creator_amount : round2(raw - (raw * 0.15) - (raw * 0.02)));
+  const net = Number(tip.creator_amount != null ? tip.creator_amount : round2(raw - (raw * 0.18) - (raw * 0.02)));
     const notification = {
       id: Date.now(),
       amount: net,
@@ -692,7 +692,7 @@ export default function CreatorDashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800">
-                    Tip Received! GH₵ {completedTipNotification.amount.toFixed(2)}
+              Tip Received! GH₵ {completedTipNotification.amount.toFixed(2)}
                   </p>
                   <p className="text-xs text-gray-600">
                     from {completedTipNotification.supporter_name}
@@ -827,7 +827,7 @@ export default function CreatorDashboard() {
                   <div className="mb-2 flex justify-center">
                       <span className="inline-flex items-center text-xs text-amber-700 bg-amber-100/40 rounded px-3 py-1">
                         <AlertTriangle className="w-4 h-4 mr-2" />
-                        <span>The amounts you see already have platform fees taken out (17%). The withdrawable amount is what you can take out.</span>
+                          <span>The amounts you see already have platform fees taken out (20%). The withdrawable amount is what you can take out.</span>
                       </span>
                     </div>
                 )}

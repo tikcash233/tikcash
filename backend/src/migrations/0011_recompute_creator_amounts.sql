@@ -9,10 +9,10 @@ DO $$
 BEGIN
   UPDATE transactions
   SET
-    platform_fee = round(((amount * 0.15::numeric) + (amount * 0.02::numeric)), 2),
-    paystack_fee = round((amount * 0.02::numeric), 2),
-    creator_amount = round((amount - (amount * 0.15::numeric) - (amount * 0.02::numeric))::numeric, 2),
-    platform_net = round((amount * 0.15::numeric)::numeric, 2)
+  platform_fee = round(((amount * 0.18::numeric) + (amount * 0.02::numeric)), 2),
+  paystack_fee = round((amount * 0.02::numeric), 2),
+  creator_amount = round((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2),
+  platform_net = round((amount * 0.18::numeric)::numeric, 2)
   WHERE transaction_type = 'tip'
     AND status = 'completed'
     AND amount IS NOT NULL
@@ -27,7 +27,7 @@ $$;
 -- Use the fee formula directly so we don't require transaction rows to have creator_amount set.
 WITH tip_sums AS (
   SELECT creator_id,
-         COALESCE(SUM(ROUND((amount - (amount * 0.15::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
+         COALESCE(SUM(ROUND((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
   FROM transactions
   WHERE transaction_type = 'tip'
     AND status = 'completed'

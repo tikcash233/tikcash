@@ -292,7 +292,7 @@ export default function Layout({ children, currentPageName }) {
                   </ul>
                 </div>
               </div>
-              <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400 text-sm">
+              <div className="mt-8 pt-8 text-center text-gray-400 text-sm">
                 <p>&copy; 2025 TikCash. Built for creators.</p>
               </div>
             </div>

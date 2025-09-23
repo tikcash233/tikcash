@@ -58,12 +58,12 @@ export async function approveWithdrawal(withdrawalId, approverId = null) {
 }
 
 // Helper to compute fees. All amounts are numbers (GHS). Returns rounded 2-decimal values.
-// New model: platform should receive 15% of the gross tip (platform_net = 15% of amount).
+// New model: platform should receive 18% of the gross tip (platform_net = 18% of amount).
 // Paystack charges 2% of the gross amount. Creator receives the remainder after both fees.
 function computeFees(amount) {
   const a = Number(amount) || 0;
-  // platform target net: 15% of gross
-  const platformNetRaw = a * 0.15;
+  // platform target net: 18% of gross
+  const platformNetRaw = a * 0.18;
   // Paystack processor fee: 2% of gross (borne by platform)
   const paystackFeeRaw = a * 0.02;
   // Creator receives gross minus platform_net and paystack fee

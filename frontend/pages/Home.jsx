@@ -55,9 +55,9 @@ export default function Home() {
         <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-gray-900 px-5 py-2.5 mb-6 shadow-lg ring-1 ring-amber-300/60">
+              <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-gray-900 px-5 py-2.5 mb-6 shadow-lg ring-1 ring-amber-300/60">
               
-              <span className="text-sm sm:text-base font-semibold">Creators keep <span className="font-extrabold">90%</span> of tips</span>
+              <span className="text-sm sm:text-base font-semibold">Creators keep <span className="font-extrabold">80%</span> of tips</span>
             </div>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
@@ -101,8 +101,8 @@ export default function Home() {
                   </div>
                   <h3 className="text-lg font-semibold">TikCash</h3>
                 </div>
-                <p className="text-gray-700"><span className="font-semibold">90% to creators</span></p>
-                <p className="text-gray-500 text-sm mt-1">Example: GH₵100 tip → <span className="font-medium text-gray-700">GH₵90 to you</span></p>
+                <p className="text-gray-700"><span className="font-semibold">80% to creators</span></p>
+                <p className="text-gray-500 text-sm mt-1">Example: GH₵100 tip → <span className="font-medium text-gray-700">GH₵80 to you</span></p>
               </CardContent>
             </Card>
 
@@ -119,7 +119,7 @@ export default function Home() {
               </CardContent>
             </Card>
           </div>
-          <p className="text-xs text-gray-500 mt-3">Figures are illustrative. Excludes Mobile Money/processor fee.</p>
+          <p className="text-xs text-gray-500 mt-3">Figures are illustrative. Excludes Transfer fees.</p>
         </div>
       </section>
 

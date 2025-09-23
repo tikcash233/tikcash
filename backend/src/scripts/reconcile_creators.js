@@ -9,11 +9,11 @@ const commit = process.argv.includes('--commit');
 
 async function preview() {
   // Count completed tips and sum of recomputed creator_amounts
-  // Use WHERE-based aggregates for compatibility
+  // Use WHERE-based aggregates for compatibility. New model: platform_net=18% + paystack=2% => 20% total fees
   const counts = await query(`
     SELECT
       COUNT(*) AS completed_tips,
-      COALESCE(SUM(ROUND((amount - (amount * 0.15::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS recomputed_creator_total
+      COALESCE(SUM(ROUND((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS recomputed_creator_total
     FROM transactions
     WHERE transaction_type='tip' AND status='completed' AND amount > 0
   `);
@@ -28,10 +28,10 @@ async function runCommit() {
       await client.query(`
         UPDATE transactions
         SET
-          platform_fee = round(((amount * 0.15::numeric) + (amount * 0.02::numeric)), 2),
+          platform_fee = round(((amount * 0.18::numeric) + (amount * 0.02::numeric)), 2),
           paystack_fee = round((amount * 0.02::numeric), 2),
-          creator_amount = round((amount - (amount * 0.15::numeric) - (amount * 0.02::numeric))::numeric, 2),
-          platform_net = round((amount * 0.15::numeric)::numeric, 2)
+          creator_amount = round((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2),
+          platform_net = round((amount * 0.18::numeric)::numeric, 2)
         WHERE transaction_type = 'tip'
           AND status = 'completed'
           AND amount IS NOT NULL
@@ -73,7 +73,7 @@ async function runCommit() {
       await client.query(`
         WITH tip_calc AS (
      SELECT creator_id,
-       COALESCE(SUM(ROUND((amount - (amount * 0.15::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
+       COALESCE(SUM(ROUND((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
           FROM transactions
           WHERE transaction_type = 'tip'
             AND status = 'completed'

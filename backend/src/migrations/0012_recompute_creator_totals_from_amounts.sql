@@ -1,11 +1,11 @@
 BEGIN;
 
--- Compute per-creator sums using the fee formula (historically 17% platform fee) but do NOT update transactions.
--- Note: newer migrations (e.g. 0015_update_fee_model.sql) migrate data to the 15% platform_net + 2% paystack model.
+-- Compute per-creator sums using the fee formula but do NOT update transactions.
+-- Note: current model uses platform_net=18% and paystack_fee=2% (20% total). Older metadata may reflect prior models.
 WITH tip_calc AS (
   SELECT creator_id,
-         -- Historically this computed using a 17% platform fee; newer migrations adjust to 15%+2% model.
-         COALESCE(SUM(ROUND((amount - (amount * 0.17::numeric))::numeric, 2)), 0) AS sum_creator_amount
+         -- Current model: platform 18% + processor 2% (net to creator = amount - 18% - 2%).
+         COALESCE(SUM(ROUND((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
   FROM transactions
   WHERE transaction_type = 'tip'
     AND status = 'completed'
