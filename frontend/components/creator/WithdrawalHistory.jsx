@@ -113,17 +113,23 @@ export default function WithdrawalHistory({ transactions = [] }) {
                     </span>
                     <span
                       className={
-                        `px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ` +
+                        `px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap shadow ` +
                         (t.status === "pending"
-                          ? "bg-yellow-50 text-yellow-700"
+                          ? "bg-yellow-100 text-yellow-800 border border-yellow-300"
                           : t.status === "failed"
-                          ? "bg-red-50 text-red-700"
+                          ? "bg-red-100 text-red-700 border border-red-300"
                           : t.status === "approved"
                           ? "bg-green-100 text-green-700 border border-green-400"
-                          : "bg-green-50 text-green-700")
+                          : "bg-gray-100 text-gray-700 border")
                       }
                     >
-                      {t.status === "approved" ? "Approved" : t.status || "pending"}
+                      {t.status === "pending"
+                        ? "Pending"
+                        : t.status === "approved"
+                        ? "Approved"
+                        : t.status === "failed"
+                        ? "Declined (Try Again)"
+                        : t.status || "Pending"}
                     </span>
                   </div>
                 </li>

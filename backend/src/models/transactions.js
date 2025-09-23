@@ -14,20 +14,17 @@ import { parseNumericFields } from '../utils.js';
 export async function listTransactionsForCreator(creatorId, { limit = 50, includeExpired = false } = {}) {
   // If limit is null or the string 'all', return full history (no LIMIT clause)
   const unlimited = limit === null || limit === 'all';
-  let sql = 'SELECT * FROM transactions WHERE creator_id = $1';
+  // Only exclude pending/expired for tips, not withdrawals
+  let sql = `SELECT * FROM transactions WHERE creator_id = $1`;
   const params = [creatorId];
-
-  // Hide all pending and expired tips unless explicitly requested
   if (!includeExpired) {
-    sql += ` AND status NOT IN (\'pending\', \'expired\')`;
+    sql += ` AND (transaction_type != 'tip' OR status NOT IN ('pending', 'expired'))`;
   }
-
   sql += ' ORDER BY created_date DESC';
   if (!unlimited) {
     sql += ' LIMIT $2';
     params.push(limit);
   }
-
   const res = await query(sql, params);
   return res.rows;
 }
