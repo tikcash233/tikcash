@@ -75,22 +75,12 @@ export default function AdminDashboard() {
           <div className="text-sm text-yellow-800">Amounts listed include a Paystack transfer fee of GH₵1.00. When paying creators, send the net amount shown (amount minus GH₵1).</div>
         </div>
       </div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Admin</h1>
-        <div className="flex gap-2 flex-wrap">
-          <NavLink
-            to="/admin"
-            end
-            className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}
-          >Pending</NavLink>
-          <NavLink
-            to="/admin/approved"
-            className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}
-          >Approved</NavLink>
-          <NavLink
-            to="/admin/declined"
-            className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}
-          >Declined</NavLink>
+      <div className="mb-6 text-center">
+        <h1 className="text-3xl font-bold mb-4">Admin</h1>
+        <div className="inline-flex bg-white shadow-sm rounded-xl overflow-hidden mx-auto">
+          <NavLink to="/admin" end className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Pending</NavLink>
+          <NavLink to="/admin/approved" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Approved</NavLink>
+          <NavLink to="/admin/declined" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Declined</NavLink>
         </div>
       </div>
       <h2 className="text-xl font-semibold mb-4">Pending Withdrawals</h2>
@@ -106,11 +96,16 @@ export default function AdminDashboard() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="inline-block px-2 py-1 rounded bg-blue-50 text-blue-700 font-mono text-xs">{w.tiktok_username || '-'}</span>
-                  <span className="font-bold text-lg text-gray-900">{w.display_name || '-'}</span>
+                  <div className="min-w-0">
+                    <div className="font-bold text-lg text-gray-900 truncate">{w.display_name || (w.tiktok_username ? w.tiktok_username : '-')}</div>
+                    {w.tiktok_username && w.display_name && w.tiktok_username !== w.display_name ? (
+                      <div className="text-sm text-gray-500">@{w.tiktok_username}</div>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                    <span className="font-semibold text-green-700">GH₵ {Math.abs(w.amount)}</span>
-                    <span className="text-sm text-gray-700">Send via Mobile Money: <span className="font-mono font-semibold">GH₵ {(Math.max(0, Number(Math.abs(w.amount)) - 1)).toFixed(2)}</span></span>
+                    <span className="font-semibold text-green-700">GH₵ {Math.abs(Number(w.amount || 0)).toFixed(2)}</span>
+                    <span className="text-sm text-gray-700">Send via Mobile Money: <span className="font-mono font-semibold">GH₵ {(Math.max(0, Number(Math.abs(w.amount || 0)) - 1)).toFixed(2)}</span></span>
                   <span className="">Mobile: <span className="font-mono text-gray-800">{w.momo_number}</span></span>
                   <span className="">Requested: <span className="text-gray-500">{new Date(w.created_date).toLocaleString()}</span></span>
                   <span className="inline-block px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 font-semibold text-xs">Pending</span>

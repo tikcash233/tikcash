@@ -73,12 +73,12 @@ export default function AdminDeclined() {
           <div className="text-sm text-yellow-800">Amounts listed include a Paystack transfer fee of GH₵1.00.</div>
         </div>
       </div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Declined Withdrawals</h1>
-        <div className="flex gap-2 flex-wrap">
-          <NavLink to="/admin" end className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Pending</NavLink>
-          <NavLink to="/admin/approved" className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Approved</NavLink>
-          <NavLink to="/admin/declined" className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Declined</NavLink>
+      <div className="mb-6 text-center">
+        <h1 className="text-2xl font-bold mb-4">Declined Withdrawals</h1>
+        <div className="inline-flex bg-white shadow-sm rounded-xl overflow-hidden">
+          <NavLink to="/admin" end className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Pending</NavLink>
+          <NavLink to="/admin/approved" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Approved</NavLink>
+          <NavLink to="/admin/declined" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Declined</NavLink>
         </div>
       </div>
 
