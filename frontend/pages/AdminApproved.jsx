@@ -85,7 +85,7 @@ export default function AdminApproved() {
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Admin — My Approved Withdrawals</h1>
+        <h1 className="text-2xl font-bold">Admin Approved Withdrawals</h1>
         <div className="flex gap-2">
           <Link to="/admin" className="px-3 py-1 rounded bg-gray-100 text-gray-800">Pending</Link>
           <Link to="/admin/approved" className="px-3 py-1 rounded bg-blue-600 text-white">Approved</Link>
@@ -129,8 +129,14 @@ export default function AdminApproved() {
             <div key={w.id} className="bg-white rounded-xl shadow-lg p-5 flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-100">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="inline-block px-2 py-1 rounded bg-blue-50 text-blue-700 font-mono text-xs">{w.tiktok_username || '-'}</span>
-                  <span className="font-bold text-lg text-gray-900">{w.display_name || '-'}</span>
+                  <span className="inline-block px-2 py-1 rounded bg-blue-50 text-blue-700 font-mono text-xs">{w.tiktok_username ? `@${w.tiktok_username}` : '-'}</span>
+                  <div className="min-w-0">
+                    <div className="font-bold text-lg text-gray-900 truncate">{w.display_name || (w.tiktok_username ? w.tiktok_username : '-')}</div>
+                    {/* show the username as secondary info only when it's different from the display name */}
+                    {w.tiktok_username && w.display_name && w.tiktok_username !== w.display_name ? (
+                      <div className="text-sm text-gray-500">@{w.tiktok_username}</div>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                   <span className="font-semibold text-green-700">GH₵ {Math.abs(Number(w.amount || 0)).toFixed(2)}</span>
