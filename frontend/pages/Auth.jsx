@@ -136,8 +136,8 @@ export default function Auth() {
             </>
           )}
           <div>
-            <label className="block text-sm text-gray-700 mb-1">Email</label>
-            <Input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="you@example.com" required />
+            <label className="block text-sm text-gray-700 mb-1">Email or username</label>
+            <Input type="text" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="you@example.com or username" required />
           </div>
           <div>
             <label className="block text-sm text-gray-700 mb-1">Password</label>

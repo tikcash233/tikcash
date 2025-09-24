@@ -744,14 +744,45 @@ app.post('/api/auth/change-password', authRequired, async (req, res, next) => {
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const data = LoginSchema.parse(req.body);
-    const { email, password } = data;
-  const r = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM users WHERE email = $1', [email.toLowerCase()]);
-    const user = r.rows[0];
-    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+    const { password } = data;
+
+    // Resolve identifier: prefer explicit email, otherwise use identifier which may be email or username
+    let lookupEmail = null;
+    if (data.email) lookupEmail = String(data.email).toLowerCase();
+    let user = null;
+    if (lookupEmail) {
+      const r = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM users WHERE email = $1', [lookupEmail]);
+      user = r.rows[0];
+    }
+
+    // If user not found by email and an identifier was provided, try to treat it as a creator username
+    if (!user && data.identifier) {
+      let id = String(data.identifier).trim();
+      // strip leading @ from username if present
+      if (id.startsWith('@')) id = id.slice(1);
+      // try exact match on creators.tiktok_username (case-insensitive)
+      const cr = await pool.query('SELECT created_by, email FROM creators WHERE lower(tiktok_username) = lower($1) LIMIT 1', [id]);
+      const c = cr.rows[0];
+      if (c) {
+        // prefer the users row matching the creators.created_by email, else fall back to a user with same email
+        if (c.created_by) {
+          const ur = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM users WHERE email = $1 LIMIT 1', [String(c.created_by).toLowerCase()]);
+          user = ur.rows[0];
+        }
+        if (!user && c.email) {
+          const ur2 = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM users WHERE email = $1 LIMIT 1', [String(c.email).toLowerCase()]);
+          user = ur2.rows[0];
+        }
+      }
+    }
+
+    // If still not found, return generic auth error (avoid user enumeration)
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
     const token = signToken({ sub: user.id, email: user.email });
-  res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role, email_verified: user.email_verified }, token });
+    res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role, email_verified: user.email_verified }, token });
   } catch (e) { next(e); }
 });
 

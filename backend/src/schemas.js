@@ -74,9 +74,14 @@ export const RegisterSchema = z.object({
 });
 
 export const LoginSchema = z.object({
-  email: z.string().email(),
+  // Accept either an email (legacy clients) or an identifier (email or username)
+  email: z.string().email().optional(),
+  identifier: z.preprocess((v) => {
+    if (typeof v !== 'string') return v;
+    return v.trim();
+  }, z.string().min(1).optional()),
   password: z.string().min(8),
-});
+}).refine((val) => !!(val.email || val.identifier), { message: 'email or identifier is required' });
 
 export const RequestVerifySchema = z.object({
   email: z.string().email(),

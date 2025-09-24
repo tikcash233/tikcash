@@ -161,7 +161,15 @@ export const User = {
     return r.user;
   },
   async login({ email, password }) {
-    const r = await fetchJson('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    // Send as `identifier` so backend can accept email or username
+    const payload = { password };
+    if (email) {
+      // If value looks like an email, also populate `email` field for strict matching
+      const isEmail = String(email).includes('@');
+      if (isEmail) payload.email = String(email).toLowerCase();
+      else payload.identifier = String(email).trim();
+    }
+    const r = await fetchJson('/api/auth/login', { method: 'POST', body: JSON.stringify(payload) });
     try { localStorage.setItem('tikcash_token', r.token); } catch {}
     return r.user;
   },
