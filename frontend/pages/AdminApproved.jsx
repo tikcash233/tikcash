@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { AlertTriangle } from 'lucide-react';
 // Removed broken react-day-picker import
 
 function formatDate(d) { return new Date(d).toLocaleString(); }
@@ -31,7 +32,14 @@ export default function AdminApproved() {
       if (sort) params.sort = sort;
   const token = localStorage.getItem('tikcash_token') || '';
   const res = await axios.get('/api/admin/approved-withdrawals', { params, headers: { Authorization: `Bearer ${token}` }, withCredentials: true });
-      setWithdrawals(res.data.withdrawals || []);
+      // Ensure UI shows newest approved first (fallback to created_date when approved_at missing)
+      const list = Array.isArray(res.data.withdrawals) ? res.data.withdrawals.slice() : [];
+      list.sort((a, b) => {
+        const ta = Date.parse(a.approved_at || a.created_date || 0) || 0;
+        const tb = Date.parse(b.approved_at || b.created_date || 0) || 0;
+        return tb - ta; // newest first
+      });
+      setWithdrawals(list);
       setTotalPages(res.data.totalPages || 1);
     } catch (err) {
       console.error(err);
@@ -84,6 +92,12 @@ export default function AdminApproved() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
+      <div className="mb-4">
+        <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-100 rounded p-3">
+          <AlertTriangle className="w-5 h-5 text-yellow-700 mt-0.5" />
+          <div className="text-sm text-yellow-800">Amounts listed include a Paystack transfer fee of GH₵1.00. When paying creators, send the net amount shown (amount minus GH₵1).</div>
+        </div>
+      </div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Admin Approved Withdrawals</h1>
         <div className="flex gap-2">
@@ -139,8 +153,9 @@ export default function AdminApproved() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                  <span className="font-semibold text-green-700">GH₵ {Math.abs(Number(w.amount || 0)).toFixed(2)}</span>
-                  <span className="">Mobile: <span className="font-mono text-gray-800">{w.momo_number}</span></span>
+                    <span className="font-semibold text-green-700">GH₵ {Math.abs(Number(w.amount || 0)).toFixed(2)}</span>
+                    <span className="text-sm text-gray-700">Send via Mobile Money: <span className="font-mono font-semibold">GH₵ {(Math.max(0, Math.abs(Number(w.amount || 0)) - 1)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                    <span className="">Mobile: <span className="font-mono text-gray-800">{w.momo_number}</span></span>
                   <span className="">Requested: <span className="text-gray-500">{new Date(w.created_date).toLocaleString()}</span></span>
                   <span className="inline-block px-2 py-1 rounded-full bg-green-50 text-green-700 font-semibold text-xs">Approved</span>
                 </div>

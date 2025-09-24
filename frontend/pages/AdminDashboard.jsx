@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { AlertTriangle } from 'lucide-react';
 // Use relative API paths for Vite proxy
 
 export default function AdminDashboard() {
@@ -67,6 +68,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
+      <div className="mb-4">
+        <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-100 rounded p-3">
+          <AlertTriangle className="w-5 h-5 text-yellow-700 mt-0.5" />
+          <div className="text-sm text-yellow-800">Amounts listed include a Paystack transfer fee of GH₵1.00. When paying creators, send the net amount shown (amount minus GH₵1).</div>
+        </div>
+      </div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Admin</h1>
         <div className="flex gap-2">
@@ -90,7 +97,8 @@ export default function AdminDashboard() {
                   <span className="font-bold text-lg text-gray-900">{w.display_name || '-'}</span>
                 </div>
                 <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                  <span className="font-semibold text-green-700">GH₵ {Math.abs(w.amount)}</span>
+                    <span className="font-semibold text-green-700">GH₵ {Math.abs(w.amount)}</span>
+                    <span className="text-sm text-gray-700">Send via Mobile Money: <span className="font-mono font-semibold">GH₵ {(Math.max(0, Number(Math.abs(w.amount)) - 1)).toFixed(2)}</span></span>
                   <span className="">Mobile: <span className="font-mono text-gray-800">{w.momo_number}</span></span>
                   <span className="">Requested: <span className="text-gray-500">{new Date(w.created_date).toLocaleString()}</span></span>
                   <span className="inline-block px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 font-semibold text-xs">Pending</span>

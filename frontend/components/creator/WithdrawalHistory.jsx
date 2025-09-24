@@ -74,8 +74,11 @@ export default function WithdrawalHistory({ transactions = [] }) {
 
   return (
     <Card className="border-none shadow-lg w-full overflow-hidden">
-      <CardHeader>
-        <CardTitle>Withdrawal History</CardTitle>
+      <CardHeader className="pb-1">
+        <div>
+          <CardTitle>Withdrawal History</CardTitle>
+          <p className="mt-1 text-xs text-gray-500">Amounts include a transfer fee of GH₵1.00. Estimated receive amounts are shown per withdrawal.</p>
+        </div>
       </CardHeader>
       <CardContent className="overflow-x-hidden">
         {visible.length === 0 ? (
