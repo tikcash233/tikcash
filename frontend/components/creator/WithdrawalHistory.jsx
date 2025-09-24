@@ -134,6 +134,9 @@ export default function WithdrawalHistory({ transactions = [] }) {
                         ? "Declined (Try Again)"
                         : t.status || "Pending"}
                     </span>
+                    {t.status === 'failed' ? (
+                      <div className="text-xs text-gray-600 mt-1">Refunded to your balance.</div>
+                    ) : null}
                   </div>
                 </li>
               ))}
