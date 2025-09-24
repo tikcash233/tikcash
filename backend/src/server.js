@@ -106,23 +106,61 @@ app.post('/api/admin/approve-withdrawal', authRequired, adminRequired, async (re
 
 // Admin route: Decline (reject) withdrawal
 app.post('/api/admin/decline-withdrawal', authRequired, adminRequired, async (req, res) => {
+  const client = await pool.connect();
   try {
     const { withdrawalId } = req.body || {};
-    try {
-      z.string().uuid().parse(withdrawalId);
-    } catch (e) {
+    try { z.string().uuid().parse(withdrawalId); } catch (e) {
       return res.status(400).json({ error: 'Missing or invalid withdrawalId (expected UUID)' });
     }
-    // Only allow declining withdrawals that are currently pending
-    const result = await query(
-      `UPDATE transactions SET status = 'failed' WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
+
+    await client.query('BEGIN');
+
+    // Lock the withdrawal row to avoid races
+    const sel = await client.query(
+      `SELECT id, creator_id, amount, status FROM transactions WHERE id = $1 AND transaction_type = 'withdrawal' FOR UPDATE`,
       [withdrawalId]
-      );
-      const updated = result.rows[0];
-      if (!updated) return res.status(404).json({ error: 'Withdrawal not found or not pending' });
-      res.json({ ok: true, withdrawal: updated });
+    );
+    const txRow = sel.rows[0];
+    if (!txRow || txRow.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Withdrawal not found or not pending' });
+    }
+
+    // refund the full requested amount back to the creator (use absolute value)
+    const refundAmount = Math.abs(Number(txRow.amount || 0));
+
+    // mark transaction as failed and record who/when
+    await client.query(
+      `UPDATE transactions SET status = 'failed', declined_at = now(), declined_by = $2 WHERE id = $1`,
+      [withdrawalId, req.user?.sub || null]
+    );
+
+    // refund to creator available_balance
+    await client.query(
+      `UPDATE creators SET available_balance = COALESCE(available_balance, 0) + $1 WHERE id = $2`,
+      [refundAmount, txRow.creator_id]
+    );
+
+    // fetch updated row with creator info
+    const updatedRes = await client.query(
+      `SELECT t.*, c.tiktok_username, c.display_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id WHERE t.id = $1`,
+      [withdrawalId]
+    );
+
+    await client.query('COMMIT');
+
+    const updated = updatedRes.rows[0] || null;
+
+    // emit event so frontends update in real-time
+    try { emitTransactionEvent(updated); } catch (e) { /* non-fatal */ }
+
+    res.json({ ok: true, withdrawal: updated });
   } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[decline-withdrawal] error', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -268,11 +306,11 @@ app.get('/api/admin/approved-withdrawals/export', authRequired, adminRequired, a
   let orderBy = 'COALESCE(t.approved_at, t.created_date) DESC';
     try { const [field, dir] = sort.split(':'); const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
 
-    const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy}`;
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="approved-withdrawals-${Date.now()}.csv"`);
-    // Write CSV header
-    res.write('id,creator_id,tiktok_username,display_name,amount,momo_number,approved_at\n');
+  const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at, t.declined_at, t.declined_by FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy}`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="approved-withdrawals-${Date.now()}.csv"`);
+  // Write CSV header
+  res.write('id,creator_id,tiktok_username,display_name,amount,momo_number,approved_at,declined_at,declined_by\n');
     // Execute query and stream rows
     const result = await query(sql, params);
     for (const row of result.rows) {
@@ -316,13 +354,13 @@ app.get('/api/admin/my-approved-withdrawals/export', authRequired, adminRequired
     let orderBy = 't.approved_at DESC';
     try { const [field, dir] = sort.split(':'); const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
 
-    const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy}`;
+  const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at, t.declined_at, t.declined_by FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy}`;
 
     // Stream CSV response
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="approved-withdrawals-${Date.now()}.csv"`);
-    // Write CSV header
-    res.write('id,creator_id,tiktok_username,display_name,amount,momo_number,approved_at\n');
+  // Write CSV header
+  res.write('id,creator_id,tiktok_username,display_name,amount,momo_number,approved_at,declined_at,declined_by\n');
 
     // Execute query and stream rows
     const result = await query(sql, params);
