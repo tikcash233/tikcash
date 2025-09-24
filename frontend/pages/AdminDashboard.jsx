@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { AlertTriangle } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 // Use relative API paths for Vite proxy
 
 export default function AdminDashboard() {
@@ -76,9 +77,20 @@ export default function AdminDashboard() {
       </div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Admin</h1>
-        <div className="flex gap-2">
-          <a href="/admin" className="px-3 py-1 rounded bg-blue-600 text-white">Pending</a>
-          <a href="/admin/approved" className="px-3 py-1 rounded bg-gray-100 text-gray-800">Approved</a>
+        <div className="flex gap-2 flex-wrap">
+          <NavLink
+            to="/admin"
+            end
+            className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}
+          >Pending</NavLink>
+          <NavLink
+            to="/admin/approved"
+            className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}
+          >Approved</NavLink>
+          <NavLink
+            to="/admin/declined"
+            className={({ isActive }) => `px-3 py-2 rounded text-sm font-medium w-full sm:w-auto text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}
+          >Declined</NavLink>
         </div>
       </div>
       <h2 className="text-xl font-semibold mb-4">Pending Withdrawals</h2>
