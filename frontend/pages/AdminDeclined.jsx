@@ -137,10 +137,26 @@ export default function AdminDeclined() {
             </div>
           ))}
 
-          <div className="flex items-center justify-center gap-2">
-            <button className="px-3 py-1 rounded bg-gray-200" onClick={() => setPage(p => Math.max(1, p-1))} disabled={page<=1}>Prev</button>
-            <div>Page {page} / {totalPages}</div>
-            <button className="px-3 py-1 rounded bg-gray-200" onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page>=totalPages}>Next</button>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => setPage(p => Math.max(1, p-1))}
+              disabled={page <= 1}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${page <= 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 shadow hover:bg-gray-50'}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+              Prev
+            </button>
+
+            <div className="text-sm text-gray-600">Page <span className="font-semibold text-gray-800">{page}</span> of <span className="font-semibold text-gray-800">{totalPages}</span></div>
+
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p+1))}
+              disabled={page >= totalPages}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${page >= totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 shadow hover:bg-gray-50'}`}
+            >
+              Next
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
           </div>
         </div>
       )}
