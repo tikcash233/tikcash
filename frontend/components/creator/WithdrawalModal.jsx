@@ -95,6 +95,10 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 									<p>This action will deduct from your available balance immediately.</p>
 								</div>
 							</div>
+							{/* Notice about processing time: shown before the final confirm button */}
+							<div role="note" aria-live="polite" className="mt-3 text-sm text-gray-600">
+								<strong>Note:</strong> Withdrawals can take up to 24 hours to process after you request them. Please allow up to one business day for the funds to arrive.
+							</div>
 							<div className="flex justify-end gap-2">
 								<Button type="button" variant="outline" onClick={() => setIsConfirming(false)}>Back</Button>
 								<Button type="button" onClick={handleFinalConfirm} disabled={isSubmitting}>{isSubmitting ? "Processing..." : "Confirm Withdraw"}</Button>
