@@ -11,10 +11,12 @@ export default function AdminDashboard() {
   const [approving, setApproving] = useState({});
   const [declining, setDeclining] = useState({});
   const [confirmAction, setConfirmAction] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     fetchWithdrawals();
-  }, []);
+  }, [page]);
 
   // Helper to get token from localStorage (or wherever you store it)
   function getToken() {
@@ -25,10 +27,13 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const res = await axios.get('/api/admin/pending-withdrawals', {
+        params: { page },
         headers: { Authorization: `Bearer ${getToken()}` },
         withCredentials: true,
       });
       setWithdrawals(Array.isArray(res.data.withdrawals) ? res.data.withdrawals : []);
+      // try to read total pages from API response (common keys)
+      setTotalPages(res.data.totalPages || res.data.total_pages || 1);
       setError(null);
     } catch (err) {
       setError('Failed to load withdrawals');
