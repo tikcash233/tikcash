@@ -131,7 +131,7 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 									placeholder="e.g. 0241234567"
 									required
 								/>
-								<p className="mt-1 text-xs text-gray-500">Must be a 10‑digit Ghana number starting with 020, 024, 054, 055, 059, 027, 057, 026, 056, 050, etc.</p>
+								<p className="mt-1 text-xs text-gray-500">Must be a 10‑digit Ghana number starting with 020, 024, 054, etc.</p>
 								{momo && momoInvalid && (
 									<p className="mt-1 text-xs text-red-600">Enter a valid Ghana mobile money number</p>
 								)}
