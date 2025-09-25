@@ -669,6 +669,15 @@ app.post('/api/auth/register', async (req, res, next) => {
   try {
     const data = RegisterSchema.parse(req.body);
   const { email, password, name, role, recovery_pin } = data;
+  // If attempting to register as a creator, ensure the requested tiktok_username is available.
+  if ((role || 'supporter') === 'creator' && data.tiktok_username) {
+    const t = String(data.tiktok_username).trim();
+    const ex = await pool.query('SELECT id FROM creators WHERE lower(tiktok_username) = lower($1) LIMIT 1', [t]);
+    if (ex.rows && ex.rows.length > 0) {
+      // Return a concise, machine-friendly error so frontend can show appropriate UI
+      return res.status(409).json({ error: 'tiktok_username taken, Choose a different TikTok username.', message: 'Choose a different TikTok username.' });
+    }
+  }
   // If an ADMIN_USER_EMAIL is configured, auto-assign that email the admin role
   const envAdminEmail = (process.env.ADMIN_USER_EMAIL || '').toLowerCase().trim() || null;
   const effectiveRole = (envAdminEmail && String(email).toLowerCase() === envAdminEmail) ? 'admin' : (role || 'supporter');
@@ -682,6 +691,8 @@ app.post('/api/auth/register', async (req, res, next) => {
     if (!user) return res.status(409).json({ error: 'Email already in use.' });
     // If VERIFY_EMAIL is true, you can re-enable code sending here later.
     // If registering as creator, optionally create the profile immediately
+    let creatorCreated = false;
+    let creatorError = undefined;
     if ((role || 'supporter') === 'creator') {
       const creatorPayload = {
         tiktok_username: data.tiktok_username,
@@ -692,11 +703,33 @@ app.post('/api/auth/register', async (req, res, next) => {
         created_by: user.email,
       };
       if (creatorPayload.tiktok_username && creatorPayload.display_name) {
-        try { await createCreator(creatorPayload); } catch (err) { if (err?.code !== '23505') console.error('createCreator failed', err); }
+        try {
+          // Attempt to create the creator profile regardless of phone collisions.
+          await createCreator(creatorPayload);
+          creatorCreated = true;
+        } catch (err) {
+          // Map unique constraint failures to helpful flags but do not block user registration.
+          if (err?.code === '23505') {
+            const msg = String(err.message || '').toLowerCase();
+            if (msg.includes('tiktok_username')) {
+              // If the DB insert failed due to username collision, return a clear response to the client
+              return res.status(409).json({ error: 'tiktok_username_taken', message: 'Choose a different TikTok username.' });
+            } else if (msg.includes('phone_number')) {
+              creatorError = 'phone_in_use';
+            } else {
+              creatorError = 'unique_constraint';
+            }
+            creatorCreated = false;
+          } else {
+            console.error('createCreator failed', err);
+          }
+        }
       }
     }
   const token = signToken({ sub: user.id, email: user.email });
-  res.status(201).json({ user, token });
+  // Include creator creation status so clients can inform the user if their desired
+  // creator profile wasn't auto-created (e.g., username or phone already in use).
+  res.status(201).json({ user, token, creatorCreated, creatorError });
   } catch (e) { 
     if (e.code === '23505') return res.status(409).json({ error: 'Email already in use.' });
     next(e); 

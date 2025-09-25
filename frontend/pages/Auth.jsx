@@ -54,7 +54,7 @@ export default function Auth() {
       }
       setErrors({});
       if (mode === 'register') {
-        const u = await User.register({ email, password, name, role: 'creator',
+        const resp = await User.register({ email, password, name, role: 'creator',
           tiktok_username: tiktokUsername,
           display_name: displayName,
           phone_number: phone,
@@ -62,8 +62,16 @@ export default function Auth() {
           category,
           recovery_pin: recoveryPin
         });
-        // No email verification flow; go straight in
+        // resp is { user, token, creatorCreated, creatorError }
         success('Account created.');
+        if (resp && resp.creatorCreated === false && resp.creatorError) {
+          // Show friendly guidance if the creator profile wasn't auto-created
+          if (resp.creatorError === 'tiktok_username_taken') {
+            error('Creator profile was not created: TikTok username already taken. You can claim it later or choose a different username.');
+          } else if (resp.creatorError === 'phone_in_use') {
+            error('Creator profile was not created: phone number already in use.');
+          }
+        }
         navigate('/creator');
       } else {
         const user = await User.login({ email, password });
@@ -75,7 +83,14 @@ export default function Auth() {
         }
       }
     } catch (e) {
-      error('Auth failed. Check your details and try again.');
+      // If server returned structured error message, show it
+      if (e && e.body && e.body.error) {
+        error(e.body.error);
+      } else if (e && e.message) {
+        error(e.message);
+      } else {
+        error('Auth failed. Check your details and try again.');
+      }
     } finally {
       setLoading(false);
     }

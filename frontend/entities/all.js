@@ -48,7 +48,15 @@ async function fetchJson(path, options) {
       throw error;
     }
     
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      // Try to include JSON body in the error for better UI messages
+      let body = null;
+      try { body = await res.json(); } catch { body = null; }
+      const err = new Error(`HTTP ${res.status}`);
+      err.status = res.status;
+      err.body = body;
+      throw err;
+    }
     return await res.json();
   } catch (err) {
     // Network error (no internet, server down, etc.)
@@ -158,7 +166,8 @@ export const User = {
     // Send full payload so creator fields reach the backend for auto-creation
     const r = await fetchJson('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) });
     try { localStorage.setItem('tikcash_token', r.token); } catch {}
-    return r.user;
+    // Return the full response so callers can inspect creator creation status
+    return r; // { user, token, creatorCreated, creatorError }
   },
   async login({ email, password }) {
     // Send as `identifier` so backend can accept email or username
