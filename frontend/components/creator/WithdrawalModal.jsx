@@ -68,11 +68,8 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 								{/* Removed creator/platform breakdown for withdrawals per product rule.
 								    Show a short note about possible processor transfer fees instead. */}
 								<div className="py-2 text-sm text-gray-600 border-t pt-3">
-									<strong>Transfer pricing (Paystack - Ghana)</strong>
-									<ul className="mt-1 list-disc list-inside">
-										<li>Transfers to mobile money wallets: GHS 1 per successful transfer</li>
-									</ul>
-									<p className="mt-1">These fees are charged by the payments provider and may be deducted during the transfer. The amount you confirm to withdraw will be deducted from your TikCash balance.</p>
+									<strong>Transfer fee: GHS 1 (charged by payments provider).</strong>
+									<p className="mt-1">These fees are charged by the payments provider and deducted during the transfer. The amount you confirm to withdraw will be deducted from your TikCash balance.</p>
 									{/* Show estimated receive amount (amount - transfer fee) */}
 									{amountNumber > 0 && (
 										<div className="mt-2 flex items-center justify-between bg-white border rounded-md p-2">
@@ -88,13 +85,7 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 									)}
 								</div>
 							</div>
-							<div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-								<AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
-								<div className="text-sm text-amber-800">
-									<p className="font-semibold">Please review before confirming</p>
-									<p>This action will deduct from your available balance immediately.</p>
-								</div>
-							</div>
+							
 							{/* Notice about processing time: shown before the final confirm button */}
 							<div role="note" aria-live="polite" className="mt-3 text-sm text-gray-600">
 								<strong>Note:</strong> Withdrawals can take up to 24 hours to process after you request them. Please allow up to one business day for the funds to arrive.
