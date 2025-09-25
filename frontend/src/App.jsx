@@ -11,6 +11,7 @@ import PaymentResult from '@/pages/PaymentResult.jsx';
 import AdminDashboard from '@/pages/AdminDashboard.jsx';
 import AdminApproved from '@/pages/AdminApproved.jsx';
 import AdminDeclined from '@/pages/AdminDeclined.jsx';
+import RequireAuth from '@/utils/RequireAuth.jsx';
 
 function WithLayout({ children, name }) {
   return <Layout currentPageName={name}>{children}</Layout>;
@@ -30,9 +31,9 @@ export default function App() {
           <Route path="/auth" element={<WithLayout name="Auth"><Auth /></WithLayout>} />
           <Route path="/reset" element={<WithLayout name="Reset"><Reset /></WithLayout>} />
           <Route path="/payment/result" element={<WithLayout name="PaymentResult"><PaymentResult /></WithLayout>} />
-          <Route path="/admin" element={<WithLayout name="AdminDashboard"><AdminDashboard /></WithLayout>} />
-          <Route path="/admin/approved" element={<WithLayout name="AdminDashboard"><AdminApproved /></WithLayout>} />
-          <Route path="/admin/declined" element={<WithLayout name="AdminDashboard"><AdminDeclined /></WithLayout>} />
+          <Route path="/admin" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminDashboard /></WithLayout></RequireAuth>} />
+          <Route path="/admin/approved" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminApproved /></WithLayout></RequireAuth>} />
+          <Route path="/admin/declined" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminDeclined /></WithLayout></RequireAuth>} />
         </Routes>
       </BrowserRouter>
     </ToastProvider>
