@@ -143,6 +143,12 @@ export default function CreatorDashboard() {
         navigate('/', { replace: true });
         return;
       }
+      // Prevent admin accounts from accessing the creator dashboard.
+      if (currentUser.role === 'admin') {
+        // Send admins to the admin dashboard instead.
+        navigate('/admin', { replace: true });
+        return;
+      }
       setUser(currentUser);
       // Find creator profile
       const creators = await Creator.filter({ created_by: currentUser.email });
