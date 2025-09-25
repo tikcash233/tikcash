@@ -688,7 +688,7 @@ app.post('/api/auth/register', async (req, res, next) => {
       [email.toLowerCase(), hashed, name || null, effectiveRole, VERIFY_EMAIL ? false : true, pinHash]
     );
     const user = r.rows[0];
-    if (!user) return res.status(409).json({ error: 'Email already in use.' });
+    if (!user) return res.status(409).json({ error: 'Email already in use, use a different one.' });
     // If VERIFY_EMAIL is true, you can re-enable code sending here later.
     // If registering as creator, optionally create the profile immediately
     let creatorCreated = false;
