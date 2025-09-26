@@ -183,11 +183,11 @@ export const User = {
     return r.user;
   },
   async requestVerify(email) {
-    await fetchJson('/api/auth/request-verify', { method: 'POST', body: JSON.stringify({ email }) });
+    // Verification removed on the backend. Keep a no-op here for compatibility.
     return true;
   },
   async verify({ email, code }) {
-    await fetchJson('/api/auth/verify', { method: 'POST', body: JSON.stringify({ email, code }) });
+    // Verification removed on the backend. Keep a no-op here for compatibility.
     return true;
   },
   logout() {

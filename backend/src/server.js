@@ -589,54 +589,6 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const RESEND_FROM = process.env.RESEND_FROM_EMAIL || '';
 const RESEND_SEND_IN_DEV = (process.env.RESEND_SEND_IN_DEV || 'false').toLowerCase() === 'true';
 const RESEND_TEST_EMAIL = (process.env.RESEND_TEST_EMAIL || '').toLowerCase();
-
-async function sendVerificationEmail(to, code) {
-  const isProd = process.env.NODE_ENV === 'production';
-  const from = isProd ? (RESEND_FROM || 'onboarding@resend.dev') : 'onboarding@resend.dev';
-  const toLower = String(to || '').toLowerCase();
-
-  // Development-friendly behavior: by default, don't call Resend.
-  if (!isProd) {
-    if (!RESEND_SEND_IN_DEV) {
-      console.log(`[email:DEV] Verification code for ${toLower}: ${code}`);
-      return;
-    }
-    // If sending in dev is enabled, only allow a single test recipient (your own email)
-    if (RESEND_TEST_EMAIL && toLower !== RESEND_TEST_EMAIL) {
-      console.log(`[email:DEV] Skipping send to ${toLower}. Allowed test email is ${RESEND_TEST_EMAIL}. Code: ${code}`);
-      return;
-    }
-  }
-  // If we reach here, attempt real send (production or explicitly enabled dev)
-  if (!RESEND_API_KEY) {
-    console.log(`[email:DEV] Verification code for ${toLower}: ${code}`);
-    return;
-  }
-  try {
-    const payload = {
-      from,
-      to,
-      subject: 'Your TikCash verification code',
-      text: `Your TikCash verification code is ${code}. It expires in 15 minutes.`,
-    };
-    const resp = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-  if (!resp.ok) {
-      const body = await resp.text();
-      console.error(`Resend API error: ${resp.status} ${resp.statusText} - ${body}`);
-      throw new Error(`Resend API responded with ${resp.status}`);
-    }
-  } catch (err) {
-    console.error('Failed to send verification email:', err?.message || err);
-    console.log(`[email:FALLBACK] Verification code for ${to}: ${code}`);
-  }
-}
 function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
@@ -866,62 +818,7 @@ app.get('/api/auth/me', authRequired, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Request email verification code
-app.post('/api/auth/request-verify', async (req, res, next) => {
-  try {
-    const { email } = RequestVerifySchema.parse(req.body);
-    const r = await pool.query('SELECT id, email_verified FROM users WHERE email = $1', [email.toLowerCase()]);
-    const user = r.rows[0];
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.email_verified) return res.json({ ok: true });
-    const code = String(Math.floor(100000 + Math.random()*900000));
-  await pool.query('INSERT INTO email_verification_codes(user_id, email, code) VALUES($1,$2,$3)', [user.id, email.toLowerCase(), code]);
-  await sendVerificationEmail(email, code);
-    const payload = { ok: true };
-    if ((process.env.NODE_ENV || 'development') !== 'production') {
-      payload.dev_code = code; // helps beginners test locally
-    }
-    res.json(payload);
-  } catch (e) { next(e); }
-});
-
-// Verify code
-app.post('/api/auth/verify', async (req, res, next) => {
-  try {
-    const { email, code } = VerifyCodeSchema.parse(req.body);
-    const r = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
-    const user = r.rows[0];
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const vc = await pool.query(
-      'SELECT * FROM email_verification_codes WHERE user_id=$1 AND email=$2 AND code=$3 AND used_at IS NULL AND expires_at > now() ORDER BY created_at DESC LIMIT 1',
-      [user.id, email.toLowerCase(), code]
-    );
-    if (!vc.rows[0]) return res.status(400).json({ error: 'Invalid or expired code' });
-    await pool.query('UPDATE email_verification_codes SET used_at = now() WHERE id = $1', [vc.rows[0].id]);
-    await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [user.id]);
-    res.json({ ok: true });
-  } catch (e) { next(e); }
-});
-
-// DEV helper: fetch latest verification code for an email (non-production only)
-app.get('/api/auth/dev-latest-code', async (req, res, next) => {
-  try {
-    if ((process.env.NODE_ENV || 'development') === 'production') {
-      return res.status(404).json({ error: 'Not found' });
-    }
-    const email = String(req.query.email || '').toLowerCase();
-    if (!email) return res.status(400).json({ error: 'email is required' });
-    const ur = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    const user = ur.rows[0];
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const vc = await pool.query(
-      'SELECT code FROM email_verification_codes WHERE user_id=$1 AND email=$2 AND used_at IS NULL AND expires_at > now() ORDER BY created_at DESC LIMIT 1',
-      [user.id, email]
-    );
-    if (!vc.rows[0]) return res.status(404).json({ error: 'No active code' });
-    res.json({ code: vc.rows[0].code });
-  } catch (e) { next(e); }
-});
+// Email verification endpoints removed: verification is no longer required.
 
 // Creators
 app.get('/api/creators', async (req, res, next) => {
@@ -1296,8 +1193,7 @@ app.get('/openapi.json', (req, res) => {
         get: { summary: "List creators", parameters: [], responses: { "200": { description: "List" } } },
         post: { summary: "Create creator (auth + verified required)", requestBody: {}, responses: { "201": { description: "Created" }, "401": { description: "Unauthorized" }, "403": { description: "Email not verified" } } }
       },
-      "/api/auth/request-verify": { post: { summary: "Request email verification code", requestBody: {}, responses: { "200": { description: "OK" } } } },
-      "/api/auth/verify": { post: { summary: "Verify email code", requestBody: {}, responses: { "200": { description: "OK" } } } },
+  // verification endpoints removed
       "/api/creators/{id}": {
         get: { summary: "Get creator", parameters: [], responses: { "200": { description: "Creator" } } },
         patch: { summary: "Update creator", requestBody: {}, responses: { "200": { description: "Updated" } } }
