@@ -367,10 +367,13 @@ app.get('/api/admin/declined-withdrawals/export', authRequired, adminRequired, a
     const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
     let dateTo = null;
     if (req.query.date_to) { dateTo = new Date(req.query.date_to); if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date_to))) dateTo.setDate(dateTo.getDate() + 1); }
-    const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
-    const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
-    const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
-    const sort = String(req.query.sort || 'declined_at:desc');
+  const amountMin = typeof req.query.amount_min !== 'undefined' ? Number(req.query.amount_min) : null;
+  const amountMax = typeof req.query.amount_max !== 'undefined' ? Number(req.query.amount_max) : null;
+  const creatorSearch = req.query.creator_search ? String(req.query.creator_search).trim() : null;
+  // allow filtering by the admin who declined the withdrawal
+  const declinedById = req.query.declined_by_id ? String(req.query.declined_by_id).trim() : null;
+  const declinedByName = req.query.declined_by_name ? String(req.query.declined_by_name).trim() : null;
+  const sort = String(req.query.sort || 'declined_at:desc');
 
     const whereClauses = ["t.transaction_type = 'withdrawal'", "t.status = 'failed'"];
     const params = [];
