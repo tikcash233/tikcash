@@ -13,6 +13,14 @@ export default function AdminSupportTickets() {
 
   useEffect(() => { fetchTickets(); }, []);
 
+  function fmt(dt) {
+    if (!dt) return '—';
+    try {
+      const d = new Date(dt);
+      return d.toLocaleString();
+    } catch { return String(dt); }
+  }
+
   async function fetchTickets() {
     setLoading(true); setError('');
     try {
@@ -56,6 +64,8 @@ export default function AdminSupportTickets() {
                   <div>
                     <div className="font-semibold text-lg text-gray-900 dark:text-white">{t.name} <span className="text-sm text-gray-500">{t.email}</span></div>
                     <div className="text-sm text-gray-500 mt-1">{t.phone || '—'}</div>
+                    <div className="mt-2 text-xs text-gray-400">Opened: {fmt(t.created_at)}</div>
+                    {t.responded_at && <div className="mt-1 text-xs text-gray-400">Resolved: {fmt(t.responded_at)}</div>}
                   </div>
                 </div>
                 <div className="mt-4 text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{t.message}</div>
