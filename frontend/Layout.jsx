@@ -315,13 +315,13 @@ export default function Layout({ children, currentPageName }) {
                   <h4 className="font-semibold mb-4">Support</h4>
                   <ul className="space-y-2 text-gray-400 text-sm">
                     <li>
-                      <a
-                        href="#"
-                        className="hover:text-white transition-colors"
-                      >
-                        Contact Us
-                      </a>
-                    </li>
+                          <button
+                            onClick={() => setSupportOpen(true)}
+                            className="hover:text-white transition-colors text-left"
+                          >
+                            Contact Us
+                          </button>
+                        </li>
                     <li>
                       <a
                         href="#"
