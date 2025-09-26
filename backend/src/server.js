@@ -16,6 +16,7 @@ import { listCreators, createCreator, updateCreator, getCreatorById } from './mo
 import { listTransactionsForCreator, createTipAndApply, createTransaction, getTransactionByReference, completePendingTip, getByIdempotency, attachAuthorizationUrl, expireOldPendingTips, listCreatorsSupportedByUser } from './models/transactions.js';
 import { initializePaystackTransaction } from './payments/paystack.js';
 import { txEvents, emitTransactionEvent } from './events.js';
+import { createSupportTicket, listSupportTickets, getSupportTicketById, respondToSupportTicket } from './models/support.js';
 import crypto from 'node:crypto';
 import http from 'http';
 import { createClient } from '@supabase/supabase-js';
@@ -238,6 +239,40 @@ app.get('/api/admin/my-approved-withdrawals', authRequired, adminRequired, async
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Public: create a support/contact ticket
+app.post('/api/support', async (req, res, next) => {
+  try {
+    const { name, email, phone, message } = req.body || {};
+    if (!name || !email || !message) return res.status(400).json({ error: 'name, email and message are required' });
+    const ticket = await createSupportTicket({ name: String(name).trim(), email: String(email).trim(), phone: phone ? String(phone).trim() : null, message: String(message).trim() });
+    try { emitTransactionEvent && emitTransactionEvent({ type: 'support_ticket', ticket }); } catch (_) {}
+    res.status(201).json({ ok: true, ticket });
+  } catch (e) { next(e); }
+});
+
+// Admin: list support tickets (paginated)
+app.get('/api/admin/support-tickets', authRequired, adminRequired, async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1));
+    const limit = Math.min(500, Math.max(10, Number(req.query.limit || 50)));
+    const offset = (page - 1) * limit;
+    const tickets = await listSupportTickets({ limit, offset });
+    res.json({ tickets, page, pageSize: limit });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Admin: respond/update a ticket
+app.patch('/api/admin/support-tickets/:id', authRequired, adminRequired, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { status } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'Missing ticket id' });
+    const updated = await respondToSupportTicket(id, { adminId: req.user?.sub || null, status: status || 'resolved' });
+    if (!updated) return res.status(404).json({ error: 'Ticket not found' });
+    res.json({ ok: true, ticket: updated });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Admin: list all approved withdrawals (not restricted to the approving admin)

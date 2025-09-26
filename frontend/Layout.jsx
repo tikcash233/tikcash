@@ -1,13 +1,14 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Home, User, TrendingUp, Heart, Menu, X, ArrowUp } from "lucide-react";
+import { Home, User, TrendingUp, Heart, Menu, X, ArrowUp, MessageSquare } from "lucide-react";
 import Logo from "@/components/ui/Logo.jsx";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm.jsx";
 import { useState, useEffect } from "react";
 import { User as ApiUser } from "@/entities/all";
 import { useToast } from "@/components/ui/toast.jsx";
+import SupportModal from '@/components/ui/SupportModal.jsx';
 
 const navigationItems = [
   {
@@ -33,6 +34,8 @@ export default function Layout({ children, currentPageName }) {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const isHome = currentPageName === "Home";
   const [loggedIn, setLoggedIn] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
   const { success } = useToast();
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -66,6 +69,8 @@ export default function Layout({ children, currentPageName }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // (Support modal opened via header/mobile buttons)
+
   // Re-check auth on route changes (same-tab update after login/register)
   useEffect(() => {
     try {
@@ -73,7 +78,26 @@ export default function Layout({ children, currentPageName }) {
     } catch {
       setLoggedIn(false);
     }
+    // close support modal when navigating
+    setSupportOpen(false);
   }, [location.pathname]);
+
+  // Determine if current logged in user is admin (hide support button for admins)
+  useEffect(() => {
+    let mounted = true;
+    async function checkAdmin() {
+      try {
+        const u = await ApiUser.me();
+        if (!mounted) return;
+        setIsAdmin(!!(u && u.role && String(u.role).toLowerCase() === 'admin'));
+      } catch (e) {
+        if (!mounted) return;
+        setIsAdmin(false);
+      }
+    }
+    if (loggedIn) checkAdmin(); else setIsAdmin(false);
+    return () => { mounted = false; };
+  }, [loggedIn]);
 
   // (Notification components removed)
 
@@ -132,6 +156,13 @@ export default function Layout({ children, currentPageName }) {
                       </Link>
                     ))}
                 </nav>
+                  {/* Contact (desktop) - visible to logged-in non-admin users; styled like nav items */}
+                  {loggedIn && !isAdmin && (
+                    <button onClick={() => { console.debug('Contact clicked (desktop)'); setSupportOpen(true); }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${supportOpen ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}>
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Contact</span>
+                    </button>
+                  )}
                 {loggedIn ? (
                   <Button
                     onClick={onLogout}
@@ -196,6 +227,13 @@ export default function Layout({ children, currentPageName }) {
                     </Link>
                   ))}
                 <div className="pt-2">
+                  {/* Mobile Contact link for logged-in non-admin users (above logout) */}
+                  {loggedIn && !isAdmin && (
+                    <button onClick={() => { console.debug('Contact clicked (mobile)'); setMobileMenuOpen(false); setSupportOpen(true); }} className={`w-full text-left flex items-center space-x-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50`}>
+                      <MessageSquare className="w-5 h-5" />
+                      <span>Contact Support</span>
+                    </button>
+                  )}
                   {loggedIn ? (
                     <button
                       onClick={() => {
@@ -224,7 +262,7 @@ export default function Layout({ children, currentPageName }) {
         {/* Main Content */}
         <main className="flex-1">{children}</main>
 
-        {/* Back to Top */}
+  {/* Back to Top */}
         {showBackToTop && (
           <button
             aria-label="Back to top"
@@ -235,7 +273,10 @@ export default function Layout({ children, currentPageName }) {
           </button>
         )}
 
-        {/* Footer */}
+        {/* Support Modal (opened via header/mobile buttons) */}
+        <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
+
+  {/* Footer */}
         {isHome && (
           <footer className="bg-gray-900 text-white py-12">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

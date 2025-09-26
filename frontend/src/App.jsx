@@ -11,6 +11,7 @@ import PaymentResult from '@/pages/PaymentResult.jsx';
 import AdminDashboard from '@/pages/AdminDashboard.jsx';
 import AdminApproved from '@/pages/AdminApproved.jsx';
 import AdminDeclined from '@/pages/AdminDeclined.jsx';
+import AdminSupportTickets from '@/pages/AdminSupportTickets.jsx';
 import RequireAuth from '@/utils/RequireAuth.jsx';
 
 function WithLayout({ children, name }) {
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/admin" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminDashboard /></WithLayout></RequireAuth>} />
           <Route path="/admin/approved" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminApproved /></WithLayout></RequireAuth>} />
           <Route path="/admin/declined" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminDeclined /></WithLayout></RequireAuth>} />
+          <Route path="/admin/support-tickets" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminSupportTickets /></WithLayout></RequireAuth>} />
         </Routes>
       </BrowserRouter>
     </ToastProvider>
