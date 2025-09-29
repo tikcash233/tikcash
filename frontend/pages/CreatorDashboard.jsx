@@ -865,8 +865,8 @@ export default function CreatorDashboard() {
                 <p className="text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
                   Live Match
                 </p>
-                <p className="text-2xl font-bold text-gray-900">GH₵ {liveMatchTotal.toFixed(2)}</p>
-                <p className="text-xs text-gray-500 mt-1">Reflects tips received during the active live match window.</p>
+                <p className="text-2xl font-bold text-gray-900"> {liveMatchTotal.toFixed(2)} Points</p>
+                <p className="text-xs text-gray-500 mt-1">Tips received during the live match are instantly credited to your main balance.</p>
               </div>
               <div className="flex items-center gap-3">
                 {!liveMatchActive ? (
