@@ -866,7 +866,7 @@ export default function CreatorDashboard() {
                   Live Match
                 </p>
                 <p className="text-2xl font-bold text-gray-900"> {liveMatchTotal.toFixed(2)} Points</p>
-                <p className="text-xs text-gray-500 mt-1">Tips received during the live match are instantly credited to your main balance.</p>
+                <p className="text-xs text-gray-500 mt-1">Tips received during the live match are instantly added to your main balance.</p>
               </div>
               <div className="flex items-center gap-3">
                 {!liveMatchActive ? (
@@ -897,8 +897,12 @@ export default function CreatorDashboard() {
                 {stat.title === 'Total Earnings' && (
                   <div className="mb-2 flex justify-center">
                       <span className="inline-flex items-center text-xs text-amber-700 bg-amber-100/40 rounded px-3 py-1">
-                        <AlertTriangle className="w-4 h-4 mr-2" />
-                          <span>The amounts you see already have platform fees taken out (20%). The withdrawable amount is what you can take out.</span>
+                        <AlertTriangle className="w-6 h-6 mr-2 flex-shrink-0" />
+                          <span>Amounts you see already have platform fees taken out (20%).
+                            <br />
+                             Live match totals are shown as “Points” to display match performance without revealing actual earnings.
+                             <br />
+                             Example 1 point = 1 GH₵</span>
                       </span>
                     </div>
                 )}
