@@ -89,6 +89,35 @@ export default function CreatorDashboard() {
     }
   };
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
+  // Live match state
+  const [liveMatchActive, setLiveMatchActive] = useState(false);
+  const liveMatchActiveRef = useRef(false);
+  const [liveMatchTotal, setLiveMatchTotal] = useState(0);
+  const [showStartLiveConfirm, setShowStartLiveConfirm] = useState(false);
+  const [showEndLiveConfirm, setShowEndLiveConfirm] = useState(false);
+
+  // Start live match after confirmation
+  const confirmStartLive = () => {
+    setShowStartLiveConfirm(false);
+    liveMatchActiveRef.current = true;
+    setLiveMatchActive(true);
+    // Ensure live total starts at 0 for a fresh session
+    setLiveMatchTotal(0);
+  };
+
+  // End live match after confirmation: clear live total (tips already applied to balances)
+  const confirmEndLive = () => {
+    setShowEndLiveConfirm(false);
+    liveMatchActiveRef.current = false;
+    setLiveMatchActive(false);
+    // Clear displayed live total (tips already reflected elsewhere)
+    setLiveMatchTotal(0);
+  };
+
+  // Keep ref in sync with state (covers any future toggles)
+  useEffect(() => {
+    liveMatchActiveRef.current = liveMatchActive;
+  }, [liveMatchActive]);
   // (Legacy) safetySyncTimerRef removed: we now use a lightweight conditional fallback poll.
   const visibilityRef = useRef(document.visibilityState === 'visible');
   const creatorIdRef = useRef(null);
@@ -260,6 +289,11 @@ export default function CreatorDashboard() {
         available_balance: (prev.available_balance || 0) + amt,
       };
     });
+    // If a live match is active, reflect this tip in the live match total as well.
+    // Use a ref for immediate, stable access in async events.
+    if (liveMatchActiveRef.current) {
+      setLiveMatchTotal(prev => Math.round((prev + amt + Number.EPSILON) * 100) / 100);
+    }
     if (import.meta.env.DEV) console.debug('[balance] applied tip locally', { key, amt, historical: createdTs < recentCutoff });
     if (createdTs >= recentCutoff) {
       setBalancePulse(true);
@@ -823,6 +857,37 @@ export default function CreatorDashboard() {
           <ShareLinkBar creator={creator} />
         </div>
 
+        {/* Live Match Card (appears before stats) */}
+        <div className="mb-6">
+          <Card className="border-none shadow-lg">
+            <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
+                  Live Match
+                </p>
+                <p className="text-2xl font-bold text-gray-900">GH₵ {liveMatchTotal.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 mt-1">Reflects tips received during the active live match window.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {!liveMatchActive ? (
+                  <>
+                    <Button onClick={() => setShowStartLiveConfirm(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                      Start Live Match
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-medium">Live Now</span>
+                    <Button onClick={() => setShowEndLiveConfirm(true)} className="bg-red-600 hover:bg-red-700 text-white">
+                      End Live Match
+                    </Button>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {stats.map((stat, index) => {
@@ -895,6 +960,25 @@ export default function CreatorDashboard() {
             onClose={() => setShowWithdrawModal(false)}
           />
         )}
+        {/* Live Match Confirmations */}
+        <ConfirmDialog
+          open={showStartLiveConfirm}
+          title="Start live match?"
+          description="Confirm you want to start a live match. Tips received while live will be shown in the Live Match panel and also reflected in your earnings." 
+          confirmText="Start"
+          cancelText="Cancel"
+          onConfirm={confirmStartLive}
+          onCancel={() => setShowStartLiveConfirm(false)}
+        />
+        <ConfirmDialog
+          open={showEndLiveConfirm}
+          title="End live match?"
+          description="Ending the live match will clear the Live Match counter. Tips received during the match are already added to your balances and recent tips list." 
+          confirmText="End"
+          cancelText="Cancel"
+          onConfirm={confirmEndLive}
+          onCancel={() => setShowEndLiveConfirm(false)}
+        />
   {/* Live Tip Banner (longer on desktop) */}
   {/* Live tip banner removed */}
       </div>
