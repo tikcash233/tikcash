@@ -877,7 +877,13 @@ export default function CreatorDashboard() {
                   </>
                 ) : (
                   <>
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-medium">Live Now</span>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+                      </span>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-medium">Live Now</span>
+                    </span>
                     <Button onClick={() => setShowEndLiveConfirm(true)} className="bg-red-600 hover:bg-red-700 text-white">
                       End Live Match
                     </Button>
