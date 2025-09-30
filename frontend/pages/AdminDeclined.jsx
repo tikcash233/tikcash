@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, NavLink } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
+import PlatformNet from '../components/ui/PlatformNet';
 
 function formatDate(d) { return new Date(d).toLocaleString(); }
 
@@ -16,6 +17,7 @@ export default function AdminDeclined() {
   const [amountMax, setAmountMax] = useState('');
   const [creatorSearch, setCreatorSearch] = useState('');
   const [sort, setSort] = useState('declined_at:desc');
+  const [showPlatformNet, setShowPlatformNet] = useState(false);
 
   useEffect(() => { fetchPage(); }, [page]);
 
@@ -66,6 +68,7 @@ export default function AdminDeclined() {
   }
 
   return (
+    <>
     <div className="p-8 max-w-5xl mx-auto">
       <div className="mb-4">
         <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-100 rounded p-3">
@@ -79,6 +82,10 @@ export default function AdminDeclined() {
           <NavLink to="/admin" end className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Pending</NavLink>
           <NavLink to="/admin/approved" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Approved</NavLink>
           <NavLink to="/admin/declined" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Declined</NavLink>
+        </div>
+        <div className="mt-3 flex justify-end gap-3">
+          <button onClick={() => setShowPlatformNet(true)} className="px-3 py-1 rounded bg-indigo-600 text-white">Platform net</button>
+          <NavLink to="/admin/support-tickets" className="px-3 py-1 rounded bg-pink-600 text-white">Support Tickets</NavLink>
         </div>
       </div>
 
@@ -161,5 +168,7 @@ export default function AdminDeclined() {
         </div>
       )}
     </div>
+    <PlatformNet open={!!showPlatformNet} onClose={() => setShowPlatformNet(false)} />
+    </>
   );
 }

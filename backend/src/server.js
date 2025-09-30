@@ -361,6 +361,51 @@ app.get('/api/admin/declined-withdrawals', authRequired, adminRequired, async (r
   }
 });
 
+// Admin: platform net per day (sum of transactions.platform_net for completed tips)
+app.get('/api/admin/platform-net', authRequired, adminRequired, async (req, res) => {
+  try {
+    // date_from, date_to (inclusive if YYYY-MM-DD)
+    const dateFrom = req.query.date_from ? new Date(req.query.date_from) : null;
+    let dateTo = null;
+    if (req.query.date_to) {
+      dateTo = new Date(req.query.date_to);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date_to))) {
+        // make inclusive of the whole day
+        dateTo.setDate(dateTo.getDate() + 1);
+      }
+    }
+
+    const params = [];
+    let idx = 1;
+    const where = [`transaction_type = 'tip'`, `status = 'completed'`];
+    if (dateFrom) { where.push(`created_date >= $${idx}`); params.push(dateFrom.toISOString()); idx++; }
+    if (dateTo) { where.push(`created_date < $${idx}`); params.push(dateTo.toISOString()); idx++; }
+
+    const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+    // Group by day (UTC) to avoid time zone issues; format as YYYY-MM-DD
+    const sql = `SELECT to_char(date_trunc('day', created_date AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY day ORDER BY day ASC`;
+
+    // If CSV requested, stream
+    const accept = (req.query.format || '').toLowerCase();
+    const result = await query(sql, params);
+    if (accept === 'csv' || String(req.query.csv || '').toLowerCase() === 'true') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="platform-net-${Date.now()}.csv"`);
+      res.write('day,total_platform_net,count\n');
+      for (const r of result.rows) {
+        res.write(`${r.day},${r.total_platform_net},${r.count}\n`);
+      }
+      return res.end();
+    }
+
+    res.json({ data: result.rows });
+  } catch (err) {
+    console.error('[platform-net] error', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // CSV export for declined withdrawals
 app.get('/api/admin/declined-withdrawals/export', authRequired, adminRequired, async (req, res) => {
   try {
