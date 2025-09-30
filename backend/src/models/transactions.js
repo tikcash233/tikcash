@@ -41,10 +41,9 @@ export async function createTransaction(data) {
 export async function approveWithdrawal(withdrawalId, approverId = null) {
   try {
     // Only allow approving withdrawals that are currently pending
-    const now = new Date().toISOString();
     const res = await query(
-      `UPDATE transactions SET status = 'completed', approved_by = $2, approved_at = $3 WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
-      [withdrawalId, approverId, now]
+      `UPDATE transactions SET status = 'completed', approved_by = $2, approved_at = now() WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
+      [withdrawalId, approverId]
     );
     const tx = res.rows[0] || null;
     if (tx) {
