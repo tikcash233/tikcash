@@ -383,12 +383,15 @@ app.get('/api/admin/platform-net', authRequired, adminRequired, async (req, res)
 
     const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
-    // Support period=monthly to aggregate by month; default to daily
+    // Support period=monthly/yearly to aggregate by month/year; default to daily
     const period = String(req.query.period || 'daily');
     let sql;
     if (period === 'monthly') {
       // Format month as YYYY-MM
       sql = `SELECT to_char(date_trunc('month', created_date AT TIME ZONE 'UTC'), 'YYYY-MM') AS month, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY month ORDER BY month DESC`;
+    } else if (period === 'yearly') {
+      // Format year as YYYY
+      sql = `SELECT to_char(date_trunc('year', created_date AT TIME ZONE 'UTC'), 'YYYY') AS year, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY year ORDER BY year DESC`;
     } else {
       // Group by day (UTC) to avoid time zone issues; format as YYYY-MM-DD
       sql = `SELECT to_char(date_trunc('day', created_date AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY day ORDER BY day DESC`;
@@ -402,6 +405,9 @@ app.get('/api/admin/platform-net', authRequired, adminRequired, async (req, res)
       if (period === 'monthly') {
         res.write('month,total_platform_net,count\n');
         for (const r of result.rows) { res.write(`${r.month},${r.total_platform_net},${r.count}\n`); }
+      } else if (period === 'yearly') {
+        res.write('year,total_platform_net,count\n');
+        for (const r of result.rows) { res.write(`${r.year},${r.total_platform_net},${r.count}\n`); }
       } else {
         res.write('day,total_platform_net,count\n');
         for (const r of result.rows) { res.write(`${r.day},${r.total_platform_net},${r.count}\n`); }

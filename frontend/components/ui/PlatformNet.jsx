@@ -21,13 +21,17 @@ export default function PlatformNet({ open, onClose, inline = false }) {
     if (open) fetchData();
   }, [period]);
 
-  async function fetchData() {
+  // fetchData accepts optional overrides so callers (like clearFilters) can force specific params
+  async function fetchData(overrides = {}) {
     setLoading(true); setError(null);
     try {
       const qp = new URLSearchParams();
-      if (from) qp.set('date_from', from);
-      if (to) qp.set('date_to', to);
-      qp.set('period', period);
+      const fromVal = overrides.from !== undefined ? overrides.from : from;
+      const toVal = overrides.to !== undefined ? overrides.to : to;
+      const periodVal = overrides.period !== undefined ? overrides.period : period;
+      if (fromVal) qp.set('date_from', fromVal);
+      if (toVal) qp.set('date_to', toVal);
+      qp.set('period', periodVal);
       const token = localStorage.getItem('tikcash_token') || '';
       const res = await fetch(`/api/admin/platform-net?${qp.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error('Failed to fetch');
@@ -41,7 +45,7 @@ export default function PlatformNet({ open, onClose, inline = false }) {
     return data.reduce((s, r) => s + Number(r.total_platform_net || 0), 0).toFixed(2);
   }
 
-  function clearFilters() { setFrom(''); setTo(''); fetchData(); }
+  function clearFilters() { setFrom(''); setTo(''); fetchData({ from: '', to: '' }); }
 
   // drag-to-resize removed; fixed height used instead
 
@@ -70,6 +74,7 @@ export default function PlatformNet({ open, onClose, inline = false }) {
           <div className="flex items-center gap-3 text-sm text-gray-700">
             <label className="inline-flex items-center gap-2"><input type="radio" name="period" checked={period==='daily'} onChange={()=>setPeriod('daily')} /> <span>Daily</span></label>
             <label className="inline-flex items-center gap-2"><input type="radio" name="period" checked={period==='monthly'} onChange={()=>setPeriod('monthly')} /> <span>Monthly</span></label>
+            <label className="inline-flex items-center gap-2"><input type="radio" name="period" checked={period==='yearly'} onChange={()=>setPeriod('yearly')} /> <span>Yearly</span></label>
           </div>
           <div className="w-full sm:w-auto sm:ml-4">
             {/* Modern total badge - stacks on mobile and centers */}
@@ -118,15 +123,15 @@ export default function PlatformNet({ open, onClose, inline = false }) {
               </colgroup>
               <thead>
                 <tr className="text-xs text-gray-500">
-                  <th className="pr-3 sticky top-0 bg-white z-10 text-left">{period === 'monthly' ? 'Month' : 'Day'}</th>
+                  <th className="pr-3 sticky top-0 bg-white z-10 text-left">{period === 'yearly' ? 'Year' : period === 'monthly' ? 'Month' : 'Day'}</th>
                   <th className="pr-3 sticky top-0 bg-white z-10 text-center">Platform net (GHS)</th>
                   <th className="sticky top-0 bg-white z-10 text-right">Times</th>
                 </tr>
               </thead>
               <tbody>
                 {data.map(r=> (
-                  <tr key={r.day || r.month} className="border-t">
-                    <td className="py-2">{r.day || r.month}</td>
+                  <tr key={r.day || r.month || r.year} className="border-t">
+                    <td className="py-2">{period === 'yearly' ? (r.year || (r.day ? new Date(r.day).getFullYear() : '')) : (r.day || r.month)}</td>
                     <td className="py-2 text-center">{Number(r.total_platform_net).toFixed(2)}</td>
                     <td className="py-2 text-right">{r.count}</td>
                   </tr>
