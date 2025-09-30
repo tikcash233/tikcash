@@ -77,7 +77,7 @@ export default function AdminDashboard() {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <div className="mb-4 text-right flex justify-end gap-3">
-        <button onClick={() => setShowPlatformNet(true)} className="px-3 py-1 rounded bg-indigo-600 text-white">Platform net</button>
+        <button onClick={() => setShowPlatformNet(true)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md hover:brightness-105">Platform earnings</button>
         <NavLink to="/admin/support-tickets" className="inline-block px-3 py-1 rounded bg-pink-600 text-white">Support Tickets</NavLink>
       </div>
       <div className="mb-4">

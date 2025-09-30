@@ -384,7 +384,8 @@ app.get('/api/admin/platform-net', authRequired, adminRequired, async (req, res)
     const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
     // Group by day (UTC) to avoid time zone issues; format as YYYY-MM-DD
-    const sql = `SELECT to_char(date_trunc('day', created_date AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY day ORDER BY day ASC`;
+  // Order newest day first so the latest date appears at the top in the UI
+  const sql = `SELECT to_char(date_trunc('day', created_date AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY day ORDER BY day DESC`;
 
     // If CSV requested, stream
     const accept = (req.query.format || '').toLowerCase();

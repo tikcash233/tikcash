@@ -7,6 +7,7 @@ export default function PlatformNet({ open, onClose }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [error, setError] = useState(null);
+  const [heightMode, setHeightMode] = useState('medium'); // short | medium | long
 
   useEffect(() => {
     if (open) fetchData();
@@ -29,6 +30,17 @@ export default function PlatformNet({ open, onClose }) {
 
   function totalSum() {
     return data.reduce((s, r) => s + Number(r.total_platform_net || 0), 0).toFixed(2);
+  }
+
+  function clearFilters() {
+    setFrom(''); setTo('');
+    fetchData();
+  }
+
+  function heightClass() {
+    if (heightMode === 'short') return 'h-40';
+    if (heightMode === 'long') return 'h-96';
+    return 'h-64';
   }
 
   async function exportCSV() {
@@ -54,7 +66,7 @@ export default function PlatformNet({ open, onClose }) {
           <h2 className="text-lg font-bold">Platform net per day</h2>
           <div className="text-sm text-gray-600">Total: GHS {totalSum()}</div>
         </div>
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-3 gap-3 mb-4 items-end">
           <div>
             <label className="text-xs text-gray-600">From</label>
             <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="w-full border rounded p-2" />
@@ -63,15 +75,26 @@ export default function PlatformNet({ open, onClose }) {
             <label className="text-xs text-gray-600">To</label>
             <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="w-full border rounded p-2" />
           </div>
+          <div className="flex items-center gap-2">
+            <div className="ml-auto text-xs text-gray-600">View size</div>
+            <select value={heightMode} onChange={e=>setHeightMode(e.target.value)} className="border rounded p-2 text-sm">
+              <option value="short">Short</option>
+              <option value="medium">Medium</option>
+              <option value="long">Long</option>
+            </select>
+          </div>
         </div>
-        <div className="mb-4">
-          <div className="flex gap-2">
-            <Button onClick={fetchData} variant="default">Refresh</Button>
-            <Button onClick={exportCSV} variant="outline">Export CSV</Button>
+        <div className="mb-4 flex gap-2">
+          <Button onClick={fetchData} variant="default">Refresh</Button>
+          <Button onClick={exportCSV} variant="outline">Export CSV</Button>
+          <Button onClick={clearFilters} variant="ghost">Clear</Button>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="text-sm text-gray-600">Total:</div>
+            <div className="font-semibold">GHS {totalSum()}</div>
             <Button onClick={onClose} variant="ghost">Close</Button>
           </div>
         </div>
-        <div className="h-48 overflow-auto border rounded p-2">
+        <div className={`${heightClass()} overflow-auto border rounded p-2`}>
           {loading && <div>Loading...</div>}
           {error && <div className="text-red-600">{error}</div>}
           {!loading && !error && data.length === 0 && <div className="text-gray-500">No data for selected range.</div>}
@@ -81,7 +104,7 @@ export default function PlatformNet({ open, onClose }) {
                 <tr className="text-left text-xs text-gray-500">
                   <th className="pr-4">Day</th>
                   <th className="pr-4">Platform net (GHS)</th>
-                  <th>Count</th>
+                  <th>Tips</th>
                 </tr>
               </thead>
               <tbody>
