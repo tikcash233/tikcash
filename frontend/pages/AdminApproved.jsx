@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, NavLink } from 'react-router-dom';
-import PlatformNet from '../components/ui/PlatformNet';
 import { AlertTriangle } from 'lucide-react';
 // Removed broken react-day-picker import
 
@@ -18,7 +17,7 @@ export default function AdminApproved() {
   const [amountMax, setAmountMax] = useState('');
   const [creatorSearch, setCreatorSearch] = useState('');
   const [sort, setSort] = useState('approved_at:desc');
-  const [showPlatformNet, setShowPlatformNet] = useState(false);
+  
 
   useEffect(() => { fetchPage(); }, [page]);
 
@@ -109,7 +108,7 @@ export default function AdminApproved() {
           <NavLink to="/admin/declined" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Declined</NavLink>
         </div>
         <div className="mt-3 flex justify-end gap-3">
-          <button onClick={() => setShowPlatformNet(true)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md hover:brightness-105">Platform earnings</button>
+          <NavLink to="/admin/platform-earnings" className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md hover:brightness-105">Platform earnings</NavLink>
           <NavLink to="/admin/support-tickets" className="px-3 py-1 rounded bg-pink-600 text-white">Support Tickets</NavLink>
         </div>
       </div>
@@ -201,7 +200,6 @@ export default function AdminApproved() {
         </div>
       )}
     </div>
-    <PlatformNet open={!!showPlatformNet} onClose={() => setShowPlatformNet(false)} />
     </>
   );
 }

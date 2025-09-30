@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { AlertTriangle } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
-import PlatformNet from '../components/ui/PlatformNet';
 // Use relative API paths for Vite proxy
 
 export default function AdminDashboard() {
@@ -14,7 +13,7 @@ export default function AdminDashboard() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [showPlatformNet, setShowPlatformNet] = useState(false);
+  
 
   useEffect(() => {
     fetchWithdrawals();
@@ -77,7 +76,7 @@ export default function AdminDashboard() {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <div className="mb-4 text-right flex justify-end gap-3">
-        <button onClick={() => setShowPlatformNet(true)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md hover:brightness-105">Platform earnings</button>
+        <NavLink to="/admin/platform-earnings" className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md hover:brightness-105">Platform earnings</NavLink>
         <NavLink to="/admin/support-tickets" className="inline-block px-3 py-1 rounded bg-pink-600 text-white">Support Tickets</NavLink>
       </div>
       <div className="mb-4">
@@ -183,8 +182,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
-      )}
-      <PlatformNet open={!!showPlatformNet} onClose={() => setShowPlatformNet(false)} />
+  )}
     </div>
   );
 }
