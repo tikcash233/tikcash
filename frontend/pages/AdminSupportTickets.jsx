@@ -10,6 +10,9 @@ export default function AdminSupportTickets() {
   const [filter, setFilter] = useState('open'); // open | resolved | all
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
+  // Simple client-side pagination (server endpoint currently returns all). If server starts paging, adapt fetch.
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
 
   useEffect(() => { fetchTickets(); }, []);
 
@@ -58,7 +61,13 @@ export default function AdminSupportTickets() {
           </div>
 
           <div className="space-y-4">
-            {tickets.filter(t => filter === 'all' ? true : (filter === 'open' ? t.status === 'open' : t.status === 'resolved')).map(t => (
+            {(() => {
+              const filtered = tickets.filter(t => filter === 'all' ? true : (filter === 'open' ? t.status === 'open' : t.status === 'resolved'));
+              const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+              const safePage = page > totalPages ? totalPages : page; // clamp locally without setState during render
+              const start = (safePage - 1) * pageSize;
+              const slice = filtered.slice(start, start + pageSize);
+              return slice.map(t => (
               <div key={t.id} className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 border">
                 <div className="flex justify-between items-start">
                   <div>
@@ -73,10 +82,36 @@ export default function AdminSupportTickets() {
                   {t.status !== 'resolved' && <Button onClick={() => { setSelectedTicket(t); setConfirmOpen(true); }} variant="success">Mark resolved</Button>}
                 </div>
               </div>
-            ))}
+              ));
+            })()}
             {tickets.filter(t => filter === 'all' ? true : (filter === 'open' ? t.status === 'open' : t.status === 'resolved')).length === 0 && (
               <div className="text-gray-500">No tickets found for selected filter.</div>
             )}
+            {/* Pagination controls (always visible) */}
+            {(() => {
+              const filtered = tickets.filter(t => filter === 'all' ? true : (filter === 'open' ? t.status === 'open' : t.status === 'resolved'));
+              const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+              const safePage = page > totalPages ? totalPages : page;
+              return (
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${safePage <= 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 shadow hover:bg-gray-50'}`}
+                  >
+                    Prev
+                  </button>
+                  <div className="text-sm text-gray-600">Page <span className="font-semibold text-gray-800">{safePage}</span> of <span className="font-semibold text-gray-800">{totalPages}</span></div>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${safePage >= totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 shadow hover:bg-gray-50'}`}
+                  >
+                    Next
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

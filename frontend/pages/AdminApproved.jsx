@@ -15,7 +15,7 @@ export default function AdminApproved() {
   const [dateRange, setDateRange] = useState({ from: undefined, to: undefined });
   const [amountMin, setAmountMin] = useState('');
   const [amountMax, setAmountMax] = useState('');
-  const [creatorSearch, setCreatorSearch] = useState('');
+  // creator search removed per request
   const [sort, setSort] = useState('approved_at:desc');
   
 
@@ -25,11 +25,11 @@ export default function AdminApproved() {
     setLoading(true);
     try {
       const params = { page, limit: pageSize };
-      if (dateRange?.from) params.date_from = new Date(dateRange.from).toISOString();
-      if (dateRange?.to) params.date_to = new Date(dateRange.to).toISOString();
+  if (dateRange?.from) params.date_from = new Date(dateRange.from + 'T00:00:00').toISOString();
+  if (dateRange?.to) params.date_to = new Date(dateRange.to + 'T23:59:59.999').toISOString();
       if (amountMin) params.amount_min = amountMin;
       if (amountMax) params.amount_max = amountMax;
-      if (creatorSearch) params.creator_search = creatorSearch;
+  // creator_search removed
       if (sort) params.sort = sort;
   const token = localStorage.getItem('tikcash_token') || '';
   const res = await axios.get('/api/admin/approved-withdrawals', { params, headers: { Authorization: `Bearer ${token}` }, withCredentials: true });
@@ -51,11 +51,11 @@ export default function AdminApproved() {
   async function exportCSV(serverSide = false) {
     if (serverSide) {
       const params = {};
-      if (dateRange?.from) params.date_from = new Date(dateRange.from).toISOString();
-      if (dateRange?.to) params.date_to = new Date(dateRange.to).toISOString();
+  if (dateRange?.from) params.date_from = new Date(dateRange.from + 'T00:00:00').toISOString();
+  if (dateRange?.to) params.date_to = new Date(dateRange.to + 'T23:59:59.999').toISOString();
       if (amountMin) params.amount_min = amountMin;
       if (amountMax) params.amount_max = amountMax;
-      if (creatorSearch) params.creator_search = creatorSearch;
+  // creator_search removed
       if (sort) params.sort = sort;
       const qp = new URLSearchParams(params).toString();
       // Use fetch so we can include Authorization header (window.open can't set headers)
@@ -133,13 +133,10 @@ export default function AdminApproved() {
             />
           </div>
         </div>
-        <div>
-          <label className="text-sm block mb-1">Creator / search</label>
-          <input type="text" placeholder="TikTok username or display name" value={creatorSearch} onChange={(e)=>setCreatorSearch(e.target.value)} className="w-full p-2 border rounded" />
-        </div>
+        {/* Creator search removed */}
         <div className="sm:col-span-3 flex gap-2">
           <button className="px-3 py-1 rounded bg-green-600 text-white" onClick={() => { setPage(1); fetchPage(); }}>Filter</button>
-          <button className="px-3 py-1 rounded bg-gray-200" onClick={() => { setDateRange({ from: undefined, to: undefined }); setCreatorSearch(''); setPage(1); fetchPage(); }}>Clear</button>
+          <button className="px-3 py-1 rounded bg-gray-200" onClick={() => { setDateRange({ from: undefined, to: undefined }); setPage(1); fetchPage(); }}>Clear</button>
           <button className="ml-auto px-3 py-1 rounded bg-blue-600 text-white" onClick={() => exportCSV(true)}>Export CSV</button>
         </div>
       </div>

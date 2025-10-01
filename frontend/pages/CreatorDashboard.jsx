@@ -89,12 +89,37 @@ export default function CreatorDashboard() {
     }
   };
   const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
-  // Live match state
+  // Live match state (persisted per-creator in localStorage)
   const [liveMatchActive, setLiveMatchActive] = useState(false);
   const liveMatchActiveRef = useRef(false);
   const [liveMatchTotal, setLiveMatchTotal] = useState(0);
+  const liveMatchStartedAtRef = useRef(null); // timestamp (ms) of when match started
   const [showStartLiveConfirm, setShowStartLiveConfirm] = useState(false);
   const [showEndLiveConfirm, setShowEndLiveConfirm] = useState(false);
+
+  // Key builder for localStorage persistence
+  const liveKey = (suffix) => {
+    const id = creatorIdRef.current || creator?.id || 'unknown';
+    return `tikcash:live_match:${id}:${suffix}`;
+  };
+
+  // Restore persisted live match state once creator id known
+  useEffect(() => {
+    if (!creatorIdRef.current && !creator?.id) return;
+    try {
+      const active = localStorage.getItem(liveKey('active')) === '1';
+      if (active) {
+        const started = parseInt(localStorage.getItem(liveKey('started_at')) || '0', 10);
+        const total = parseFloat(localStorage.getItem(liveKey('total')) || '0');
+        if (started > 0) {
+          liveMatchStartedAtRef.current = started;
+          liveMatchActiveRef.current = true;
+          setLiveMatchActive(true);
+          setLiveMatchTotal(isFinite(total) ? total : 0);
+        }
+      }
+    } catch {}
+  }, [creator?.id]);
 
   // Start live match after confirmation
   const confirmStartLive = () => {
@@ -103,6 +128,12 @@ export default function CreatorDashboard() {
     setLiveMatchActive(true);
     // Ensure live total starts at 0 for a fresh session
     setLiveMatchTotal(0);
+    liveMatchStartedAtRef.current = Date.now();
+    try {
+      localStorage.setItem(liveKey('active'), '1');
+      localStorage.setItem(liveKey('started_at'), String(liveMatchStartedAtRef.current));
+      localStorage.setItem(liveKey('total'), '0');
+    } catch {}
   };
 
   // End live match after confirmation: clear live total (tips already applied to balances)
@@ -112,6 +143,12 @@ export default function CreatorDashboard() {
     setLiveMatchActive(false);
     // Clear displayed live total (tips already reflected elsewhere)
     setLiveMatchTotal(0);
+    liveMatchStartedAtRef.current = null;
+    try {
+      localStorage.removeItem(liveKey('active'));
+      localStorage.removeItem(liveKey('started_at'));
+      localStorage.removeItem(liveKey('total'));
+    } catch {}
   };
 
   // Keep ref in sync with state (covers any future toggles)
@@ -292,7 +329,11 @@ export default function CreatorDashboard() {
     // If a live match is active, reflect this tip in the live match total as well.
     // Use a ref for immediate, stable access in async events.
     if (liveMatchActiveRef.current) {
-      setLiveMatchTotal(prev => Math.round((prev + amt + Number.EPSILON) * 100) / 100);
+      setLiveMatchTotal(prev => {
+        const next = Math.round((prev + amt + Number.EPSILON) * 100) / 100;
+        try { localStorage.setItem(liveKey('total'), String(next)); } catch {}
+        return next;
+      });
     }
     if (import.meta.env.DEV) console.debug('[balance] applied tip locally', { key, amt, historical: createdTs < recentCutoff });
     if (createdTs >= recentCutoff) {

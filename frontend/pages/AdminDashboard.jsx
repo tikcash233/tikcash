@@ -97,9 +97,9 @@ export default function AdminDashboard() {
       {loading && <div>Loading...</div>}
       {!loading && error && <div className="text-red-500">{error}</div>}
       {!loading && !error && withdrawals.length === 0 && (
-        <div className="text-gray-500">No pending withdrawals.</div>
+        <div className="text-gray-500 mb-6">No pending withdrawals.</div>
       )}
-      {!loading && !error && withdrawals.length > 0 && (
+      {!loading && !error && (
         <div className="space-y-5">
           {withdrawals.map(w => (
             <div key={w.id} className="bg-white rounded-xl shadow-lg p-5 flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-100">
@@ -140,20 +140,18 @@ export default function AdminDashboard() {
             </div>
           ))}
 
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-3 pt-2">
             <button
-              onClick={() => setPage(p => Math.max(1, p-1))}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page <= 1}
               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${page <= 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 shadow hover:bg-gray-50'}`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
               Prev
             </button>
-
             <div className="text-sm text-gray-600">Page <span className="font-semibold text-gray-800">{page}</span> of <span className="font-semibold text-gray-800">{totalPages}</span></div>
-
             <button
-              onClick={() => setPage(p => Math.min(totalPages, p+1))}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${page >= totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 shadow hover:bg-gray-50'}`}
             >
