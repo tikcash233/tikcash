@@ -454,10 +454,13 @@ export default function CreatorDashboard() {
     let attempt = 0;
     const baseDelay = 1000; // 1s
     const maxDelay = 30000; // 30s
+    // Always prefer explicit backend origin for SSE (Netlify proxy returns 502 for event streams)
     const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
       ? import.meta.env.VITE_API_URL
       : ((typeof window !== 'undefined' && window.__API_BASE__) || '');
-    const STREAM_URL = API_BASE ? `${API_BASE}/api/stream/transactions` : '/api/stream/transactions';
+    // If no explicit base is set, we still attempt relative path (works in local dev proxy),
+    // but in production you should set VITE_API_URL to avoid 502 via Netlify.
+    const STREAM_URL = `${API_BASE || ''}/api/stream/transactions`;
 
     const processEvent = (data) => {
       const currentId = creatorIdRef.current || creator?.id;

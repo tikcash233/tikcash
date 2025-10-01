@@ -33,6 +33,12 @@ Most code still uses relative paths (`/api/...`) so Netlify redirects handle it 
 |------|---------|---------|
 | VITE_API_URL | Explicit backend base (optional in production if using redirects) | https://api.example.com |
 
+### How to set VITE_API_URL
+
+- Netlify UI: Site settings → Build & deploy → Environment → "Build environment variables" → add `VITE_API_URL` with value `https://tikcash.onrender.com` and save. Redeploy the site.
+- Locally: Create a `.env` file in `frontend/` (copy `.env.example`) and set `VITE_API_URL=http://localhost:5000` for development.
+- Override at runtime: You can also inject `window.__API_BASE__` via a small inline script in `index.html` before the app bundle loads if you need dynamic runtime configuration.
+
 ## Updating Share Links
 `ShareLinkBar.jsx` now respects `window.__PUBLIC_APP_URL` if you inject it (e.g. via a small script tag in `index.html`). Otherwise it uses current origin.
 

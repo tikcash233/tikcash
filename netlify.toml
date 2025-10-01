@@ -6,6 +6,12 @@
   command = "npm run build"   # Netlify will run npm install automatically first
   publish = "dist"            # Publish the built Vite output (frontend/dist)
 
+[build.environment]
+  # Point the frontend build at your backend so EventSource (SSE) connects directly
+  # to the backend origin instead of going through Netlify's proxy (which doesn't
+  # support streaming). This is safe to commit because it's a public URL (not a secret).
+  VITE_API_URL = "https://tikcash.onrender.com"
+
 [[redirects]]
   from = "/api/*"
   to = "https://tikcash.onrender.com/api/:splat"
@@ -18,3 +24,9 @@
   to = "https://tikcash.onrender.com/openapi.json"
   status = 200
   force = true
+
+# Catch-all SPA fallback: must be last. Serves the Vite index.html for client-side routes like /creator, /admin, etc.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -27,10 +27,11 @@ export default function PaymentResult() {
     // locally to avoid spamming the Paystack verify API.
     let verifyAttempts = 0;
     try {
+      // Always prefer explicit backend origin for SSE to bypass Netlify proxy (which returns 502 on streaming)
       const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
         ? import.meta.env.VITE_API_URL
         : ((typeof window !== 'undefined' && window.__API_BASE__) || '');
-      const STREAM_URL = API_BASE ? `${API_BASE}/api/stream/transactions` : '/api/stream/transactions';
+      const STREAM_URL = `${API_BASE || ''}/api/stream/transactions`;
       es = new EventSource(STREAM_URL);
       es.addEventListener('tx', (evt) => {
         try {
