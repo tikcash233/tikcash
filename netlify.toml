@@ -3,13 +3,13 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://backend--tikcash--nmnpwxt8kwgh.code.run/api/:splat"
+  to = "https://tikcash.onrender.com/api/:splat"
   status = 200
   force = true
   headers = { X-Forwarded-Proto = "https" }
 
 [[redirects]]
   from = "/openapi.json"
-  to = "https://backend--tikcash--nmnpwxt8kwgh.code.run/openapi.json"
+  to = "https://tikcash.onrender.com/openapi.json"
   status = 200
   force = true
