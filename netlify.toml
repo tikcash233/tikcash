@@ -1,0 +1,15 @@
+# Netlify configuration for frontend hosting.
+# Redirect /api/* calls to backend. Replace BACKEND_URL with your Northflank HTTPS URL.
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://backend--tikcash--nmnpwxt8kwgh.code.run/api/:splat"
+  status = 200
+  force = true
+  headers = { X-Forwarded-Proto = "https" }
+
+[[redirects]]
+  from = "/openapi.json"
+  to = "https://backend--tikcash--nmnpwxt8kwgh.code.run/openapi.json"
+  status = 200
+  force = true

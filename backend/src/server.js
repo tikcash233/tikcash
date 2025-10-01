@@ -1,5 +1,6 @@
 // ...existing code...
 import { approveWithdrawal } from './models/transactions.js';
+import { summarizeConfig } from './config.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -67,6 +68,8 @@ function recordActivity() {
 }
 
 const app = express();
+// Trust proxy so rate limiting & secure cookies (if added later) work behind Netlify / Northflank proxies
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(compression());
@@ -702,6 +705,22 @@ app.get('/health', async (req, res) => {
     res.status(500).json({ status: 'error', error: e.message });
   }
 });
+
+// k8s / platform style liveness (quick, no heavy checks)
+app.get('/healthz', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// Readiness: ensure DB reachable. Could be expanded to check migrations, external services.
+app.get('/readyz', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ready: true });
+  } catch (e) {
+    res.status(500).json({ ready: false, error: e.message });
+  }
+});
+
 
 // Public config so frontend knows if webhook mode is enabled (used to reduce polling)
 app.get('/api/config', (req, res) => {

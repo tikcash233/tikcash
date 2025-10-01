@@ -9,9 +9,13 @@ export default function ShareLinkBar({ creator }) {
 
   const shareUrl = useMemo(() => {
     const handle = (creator?.tiktok_username || creator?.display_name || "").replace(/^@/, "");
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://tikcash.com";
-    const base = origin.includes("localhost") ? origin : "https://tikcash.com";
-    return `${base}/${encodeURIComponent(handle || "creator")}`;
+    let origin = typeof window !== "undefined" ? window.location.origin : "";
+    // Allow override via window.__PUBLIC_APP_URL (can be injected in index.html) or env built value
+    const injected = typeof window !== 'undefined' && (window.__PUBLIC_APP_URL || window.__APP_ORIGIN);
+    if (injected) origin = injected;
+    // Fallback to current origin in dev; final fallback to example domain placeholder
+    if (!origin) origin = 'https://example.com';
+    return `${origin.replace(/\/$/, '')}/${encodeURIComponent(handle || "creator")}`;
   }, [creator]);
 
   const copyToClipboard = async () => {
