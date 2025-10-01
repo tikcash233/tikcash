@@ -15,9 +15,17 @@ const Bus = (() => {
   };
 })();
 
-const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL)
-  ? import.meta.env.VITE_API_URL
-  : ((typeof window !== 'undefined' && window.__API_BASE__) || 'http://localhost:5000');
+// In production behind Netlify redirects we *want* empty string so relative /api works.
+// Only use localhost fallback during local dev when window.location.hostname is localhost.
+let detectedBase = '';
+if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
+  detectedBase = import.meta.env.VITE_API_URL;
+} else if (typeof window !== 'undefined' && window.__API_BASE__) {
+  detectedBase = window.__API_BASE__;
+} else if (typeof window !== 'undefined' && /localhost|127\.0\.0\.1/.test(window.location.hostname)) {
+  detectedBase = 'http://localhost:5000';
+}
+const API_BASE = detectedBase;
 
 // Persistent BroadcastChannel for cross-tab events
 let bc;
