@@ -1,5 +1,10 @@
 # Netlify configuration for frontend hosting.
-# Redirect /api/* calls to backend. Replace BACKEND_URL with your Northflank HTTPS URL.
+# Redirect /api/* calls to backend. Replace BACKEND_URL with your backend HTTPS URL.
+
+[build]
+  base = "frontend"          # Path to your frontend folder (monorepo root has backend + frontend)
+  command = "npm run build"   # Netlify will run npm install automatically first
+  publish = "dist"            # Publish the built Vite output (frontend/dist)
 
 [[redirects]]
   from = "/api/*"
