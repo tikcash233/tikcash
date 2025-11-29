@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TrendingUp, Calendar, Award } from "lucide-react";
 
 function formatCedi(v) {
 	const n = Number(v || 0);
@@ -237,68 +238,144 @@ export default function PerformanceChart({ transactions = [] }) {
 			: [ { key: "12m", label: "12M" }, { key: "all", label: "All" } ];
 
 	return (
-		<Card className="border-none shadow-lg w-full overflow-hidden">
-			<CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-				<CardTitle>Performance</CardTitle>
-				<div className="flex flex-wrap items-center gap-2">
-					{/* Granularity */}
-					<div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
-						{[{ key: "day", label: "Day" }, { key: "week", label: "Week" }, { key: "month", label: "Month" }].map((g) => (
-							<button
-								key={g.key}
-								className={`px-3 py-1.5 text-sm font-medium ${granularity === g.key ? "bg-gray-900 text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
-								onClick={() => { setGranularity(g.key); if (g.key === "day") setRangeKey("30d"); else if (g.key === "week") setRangeKey("12w"); else setRangeKey("12m"); }}
-							>
-								{g.label}
-							</button>
-						))}
+		<Card className="border-none shadow-lg w-full overflow-hidden bg-gradient-to-br from-white to-blue-50/30">
+			<CardHeader className="pb-3">
+				<div className="flex items-center gap-2 mb-4">
+					<div className="p-2 bg-blue-100 rounded-lg">
+						<TrendingUp className="w-5 h-5 text-blue-600" />
+					</div>
+					<CardTitle className="text-xl">Performance Analytics</CardTitle>
+				</div>
+
+				{/* Mobile-First Controls */}
+				<div className="space-y-3">
+					{/* Granularity Selector - Full width on mobile */}
+					<div className="flex flex-col sm:flex-row sm:items-center gap-2">
+						<span className="text-xs font-medium text-gray-600 uppercase tracking-wide flex items-center gap-1">
+							<Calendar className="w-3 h-3" />
+							View By
+						</span>
+						<div className="grid grid-cols-3 gap-1 sm:inline-flex sm:rounded-lg sm:border sm:border-gray-200 sm:overflow-hidden sm:shadow-sm flex-1 sm:flex-none">
+							{[{ key: "day", label: "Day" }, { key: "week", label: "Week" }, { key: "month", label: "Month" }].map((g) => (
+								<button
+									key={g.key}
+									className={`px-3 py-2.5 sm:py-2 text-sm font-medium transition-all rounded-lg sm:rounded-none ${
+										granularity === g.key 
+											? "bg-blue-600 text-white shadow-md sm:shadow-none" 
+											: "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 sm:border-0"
+									}`}
+									onClick={() => { 
+										setGranularity(g.key); 
+										if (g.key === "day") setRangeKey("7d"); 
+										else if (g.key === "week") setRangeKey("12w"); 
+										else setRangeKey("12m"); 
+									}}
+								>
+									{g.label}
+								</button>
+							))}
+						</div>
 					</div>
 
-					{/* Range */}
-					<div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
-						{rangeButtons.map((r) => (
+					{/* Range & Active Filter - Side by side on mobile */}
+					<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+						<span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Range</span>
+						<div className="flex gap-1 sm:gap-2 flex-1 sm:flex-none">
+							<div className="flex gap-1 flex-1 sm:inline-flex sm:rounded-lg sm:border sm:border-gray-200 sm:overflow-hidden sm:shadow-sm">
+								{rangeButtons.map((r) => (
+									<button
+										key={r.key}
+										className={`flex-1 sm:flex-none px-3 py-2.5 sm:py-2 text-sm font-medium transition-all rounded-lg sm:rounded-none ${
+											rangeKey === r.key 
+												? "bg-emerald-600 text-white shadow-md sm:shadow-none" 
+												: "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 sm:border-0"
+										}`}
+										onClick={() => setRangeKey(r.key)}
+									>
+										{r.label}
+									</button>
+								))}
+							</div>
+							
+							{/* Active Filter Button */}
 							<button
-								key={r.key}
-								className={`px-3 py-1.5 text-sm font-medium ${rangeKey === r.key ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-50"}`}
-								onClick={() => setRangeKey(r.key)}
+								className={`px-3 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition-all shadow-sm border ${
+									activeOnly 
+										? "bg-purple-600 text-white border-purple-600" 
+										: "bg-white text-gray-700 hover:bg-gray-50 border-gray-200"
+								}`}
+								onClick={() => setActiveOnly((v) => !v)}
+								title="Show only periods with tips"
 							>
-								{r.label}
+								<span className="hidden sm:inline">{activeOnly ? "Active Only" : "All"}</span>
+								<span className="sm:hidden">📊</span>
 							</button>
-						))}
+						</div>
 					</div>
-
-					{/* Active only */}
-					<button
-						className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${activeOnly ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-700 hover:bg-gray-50 border-gray-300"}`}
-						onClick={() => setActiveOnly((v) => !v)}
-						title="Show only periods with tips"
-					>
-						{activeOnly ? "Active Only" : "All Periods"}
-					</button>
 				</div>
 			</CardHeader>
-			<CardContent>
-				<div className="text-xs text-gray-400 mb-2">Chart shows net amounts (after platform fee: 20%).</div>
+
+			<CardContent className="pt-0">
 				{!hasData ? (
-					<p className="text-gray-600">No performance data yet.</p>
+					<div className="flex flex-col items-center justify-center py-12 text-center">
+						<div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+							<TrendingUp className="w-8 h-8 text-gray-400" />
+						</div>
+						<p className="text-gray-600 font-medium">No performance data yet</p>
+						<p className="text-sm text-gray-500 mt-1">Start receiving tips to see your analytics</p>
+					</div>
 				) : dSeries.length === 0 ? (
-					<p className="text-gray-600">No data in this range.</p>
+					<div className="flex flex-col items-center justify-center py-12 text-center">
+						<div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+							<Calendar className="w-8 h-8 text-blue-600" />
+						</div>
+						<p className="text-gray-600 font-medium">No data in this range</p>
+						<p className="text-sm text-gray-500 mt-1">Try selecting a different time period</p>
+					</div>
 				) : (
 					<div ref={containerRef} className="w-full min-w-0">
-						<div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
-							<span className="text-gray-700">Range Total: <strong>{formatCedi(totals.sum)}</strong></span>
-							<span className="text-gray-700">Lifetime: <strong>{formatCedi(totals.lifetime)}</strong></span>
+						{/* Stats Cards - Mobile Optimized */}
+						<div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-4">
+							{/* Range Total */}
+							<div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-3 border border-blue-200/50">
+								<div className="text-xs text-blue-600 font-medium mb-1">Period Total</div>
+								<div className="text-lg sm:text-xl font-bold text-blue-900">{formatCedi(totals.sum)}</div>
+							</div>
+
+							{/* Lifetime */}
+							<div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-3 border border-purple-200/50">
+								<div className="text-xs text-purple-600 font-medium mb-1">Lifetime</div>
+								<div className="text-lg sm:text-xl font-bold text-purple-900">{formatCedi(totals.lifetime)}</div>
+							</div>
+
+							{/* Best Period */}
 							{totals.best && (
-								<span className="text-gray-700">Best {granularity}: <strong>{formatCedi(totals.best.amount)}</strong> on <strong>{humanLabel(totals.best.labelDate || dSeries.find(d=>d.amount===totals.best.amount)?.labelDate, granularity)}</strong></span>
+								<div className="col-span-2 lg:col-span-1 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-3 border border-emerald-200/50">
+									<div className="flex items-center gap-1 mb-1">
+										<Award className="w-3 h-3 text-emerald-600" />
+										<div className="text-xs text-emerald-600 font-medium">Best {granularity}</div>
+									</div>
+									<div className="text-lg sm:text-xl font-bold text-emerald-900">{formatCedi(totals.best.amount)}</div>
+									<div className="text-xs text-emerald-600 mt-0.5 truncate">
+										{humanLabel(totals.best.labelDate || dSeries.find(d=>d.amount===totals.best.amount)?.labelDate, granularity)}
+									</div>
+								</div>
 							)}
-							<span className="text-gray-500">Shown: {dSeries.length} {granularity === "day" ? "days" : granularity === "week" ? "weeks" : "months"}</span>
-							<span className="text-gray-400">(Totals reflect selected range)</span>
+
+							{/* Data Points */}
+							<div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-3 border border-gray-200/50 lg:col-span-1 col-span-2 lg:block">
+								<div className="text-xs text-gray-600 font-medium mb-1">Data Points</div>
+								<div className="text-lg sm:text-xl font-bold text-gray-900">
+									{dSeries.length} {granularity === "day" ? "days" : granularity === "week" ? "weeks" : "months"}
+								</div>
+							</div>
 						</div>
 
-						<div className="relative">
+						{/* Chart Container */}
+						<div className="relative bg-white rounded-xl p-3 sm:p-4 border border-gray-100 shadow-sm">
 							<svg
 								viewBox={`0 0 ${width} ${height}`}
-								className="w-full h-56 sm:h-64 select-none"
+								className="w-full h-48 sm:h-56 md:h-64 select-none touch-none"
 								onMouseMove={onMouseMove}
 								onMouseLeave={onMouseLeave}
 								onTouchMove={onTouchMove}
@@ -306,42 +383,109 @@ export default function PerformanceChart({ transactions = [] }) {
 							>
 								<defs>
 									<linearGradient id="perfFill" x1="0" x2="0" y1="0" y2="1">
-										<stop offset="0%" stopColor="#2563eb" stopOpacity="0.35" />
-										<stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+										<stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
+										<stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
 									</linearGradient>
 									<linearGradient id="perfLine" x1="0" x2="1" y1="0" y2="0">
-										<stop offset="0%" stopColor="#2563eb" />
-										<stop offset="100%" stopColor="#1d4ed8" />
+										<stop offset="0%" stopColor="#3b82f6" />
+										<stop offset="100%" stopColor="#2563eb" />
 									</linearGradient>
+									<filter id="glow">
+										<feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+										<feMerge>
+											<feMergeNode in="coloredBlur"/>
+											<feMergeNode in="SourceGraphic"/>
+										</feMerge>
+									</filter>
 								</defs>
 
+								{/* Grid lines */}
 								{[0.25, 0.5, 0.75, 1].map((p, i) => (
-									<line key={i} x1={pad} x2={width - pad} y1={pad + innerH * p} y2={pad + innerH * p} stroke="#e5e7eb" strokeWidth="1" />
+									<line 
+										key={i} 
+										x1={pad} 
+										x2={width - pad} 
+										y1={pad + innerH * p} 
+										y2={pad + innerH * p} 
+										stroke="#e5e7eb" 
+										strokeWidth="1" 
+										strokeDasharray="4 2"
+									/>
 								))}
 
+								{/* Area fill */}
 								<path d={areaPath} fill="url(#perfFill)" />
-								<path d={linePath} fill="none" stroke="url(#perfLine)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+								
+								{/* Line with glow effect */}
+								<path 
+									d={linePath} 
+									fill="none" 
+									stroke="url(#perfLine)" 
+									strokeWidth="3" 
+									strokeLinejoin="round" 
+									strokeLinecap="round"
+									filter="url(#glow)"
+								/>
 
-								{dSeries.map((d, i) => (i % Math.max(1, Math.round(dSeries.length / 4)) === 0) ? (
+								{/* X-axis labels */}
+								{dSeries.map((d, i) => (i % Math.max(1, Math.round(dSeries.length / (width > 640 ? 6 : 4))) === 0) ? (
 									<g key={d.key} transform={`translate(${pad + i * xStep}, ${height - pad + 14})`}>
-										<text textAnchor="middle" fontSize="10" fill="#6b7280">{humanTick(d.labelDate, granularity)}</text>
+										<text textAnchor="middle" fontSize="10" fill="#6b7280" className="font-medium">
+											{humanTick(d.labelDate, granularity)}
+										</text>
 									</g>
 								) : null)}
 
+								{/* Hover indicators */}
 								{hoverPoint && (
 									<g>
-										<line x1={pad + hoverIndex * xStep} x2={pad + hoverIndex * xStep} y1={pad} y2={height - pad} stroke="#94a3b8" strokeDasharray="4 4" />
-										<circle cx={pad + hoverIndex * xStep} cy={pad + yScale(hoverPoint.amount)} r="4" fill="#2563eb" stroke="#fff" strokeWidth="2" />
+										<line 
+											x1={pad + hoverIndex * xStep} 
+											x2={pad + hoverIndex * xStep} 
+											y1={pad} 
+											y2={height - pad} 
+											stroke="#94a3b8" 
+											strokeWidth="2"
+											strokeDasharray="4 4" 
+										/>
+										<circle 
+											cx={pad + hoverIndex * xStep} 
+											cy={pad + yScale(hoverPoint.amount)} 
+											r="6" 
+											fill="#3b82f6" 
+											stroke="#fff" 
+											strokeWidth="3"
+											filter="url(#glow)"
+										/>
 									</g>
 								)}
 							</svg>
 
+							{/* Hover tooltip - Better positioned for mobile */}
 							{hoverPoint && (
-								<div className="absolute -translate-x-1/2 -translate-y-2 px-2 py-1 rounded-md bg-slate-800 text-white text-xs shadow" style={{ left: `${((pad + hoverIndex * xStep) / width) * 100}%`, top: 8 }}>
-									<div className="font-semibold">{humanLabel(hoverPoint.labelDate, granularity)}</div>
-									<div>{formatCedi(hoverPoint.amount)}</div>
+								<div 
+									className="absolute z-10 pointer-events-none"
+									style={{ 
+										left: `${((pad + hoverIndex * xStep) / width) * 100}%`,
+										top: '8px',
+										transform: 'translateX(-50%)'
+									}}
+								>
+									<div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700">
+										<div className="text-xs font-medium text-slate-300 mb-0.5">
+											{humanLabel(hoverPoint.labelDate, granularity)}
+										</div>
+										<div className="text-sm font-bold">{formatCedi(hoverPoint.amount)}</div>
+									</div>
+									{/* Arrow pointer */}
+									<div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 mx-auto"></div>
 								</div>
 							)}
+						</div>
+
+						{/* Info note */}
+						<div className="mt-3 text-xs text-gray-500 text-center bg-gray-50 rounded-lg px-3 py-2">
+							💡 Chart shows net amounts (after 20% platform fee). Tap/hover on chart for details.
 						</div>
 					</div>
 				)}
