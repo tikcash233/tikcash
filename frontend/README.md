@@ -47,6 +47,9 @@ Example injection (optional) in `index.html` head:
 <script>window.__PUBLIC_APP_URL=window.location.origin;</script>
 ```
 
+## Printable QR Codes
+Creators get a scannable QR inside the dashboard share card. It encodes the public share link and can be downloaded as a PNG for printing. The QR is generated client-side via the [`qrcode`](https://www.npmjs.com/package/qrcode) package, so make sure `npm install` runs after pulling this change.
+
 ## Production Checklist (Frontend)
 - Use HTTPS domain (custom domain on Netlify).
 - Confirm `/api/*` requests return 200 via redirect to backend.
