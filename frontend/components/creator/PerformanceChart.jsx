@@ -135,49 +135,47 @@ export default function PerformanceChart({ transactions = [] }) {
 		return m;
 	}, [tips, granularity]);
 
-	// Range
+	// Range - Simplified to 4 options, always use current date as end
 	const { rangeStart, rangeEnd } = useMemo(() => {
+		const now = new Date();
+		const today = startOfDay(now);
+		
+		if (rangeKey === "7d") {
+			// Last 7 days including today
+			return { rangeStart: addDays(today, -6), rangeEnd: today };
+		}
+		if (rangeKey === "month") {
+			// Current month from 1st to today
+			const monthStart = startOfMonth(now);
+			return { rangeStart: monthStart, rangeEnd: today };
+		}
+		if (rangeKey === "year") {
+			// Current year from Jan 1 to today
+			const yearStart = new Date(now.getFullYear(), 0, 1);
+			return { rangeStart: startOfDay(yearStart), rangeEnd: today };
+		}
+		// all time - from first transaction to today (or just today if no data)
 		if (!hasData) {
-			const today = startOfDay(new Date());
 			return { rangeStart: today, rangeEnd: today };
 		}
-		let end = startOfDay(latestDate);
-		if (granularity === "day") {
-			if (rangeKey === "7d") return { rangeStart: addDays(end, -6), rangeEnd: end };
-			if (rangeKey === "all") return { rangeStart: startOfDay(earliestDate), rangeEnd: end };
-			return { rangeStart: addDays(end, -29), rangeEnd: end };
-		}
-		if (granularity === "week") {
-			end = startOfISOWeek(end);
-			if (rangeKey === "12w") return { rangeStart: addWeeks(end, -11), rangeEnd: end };
-			const start = startOfISOWeek(earliestDate);
-			return { rangeStart: start, rangeEnd: end };
-		}
-		// month
-		end = startOfMonth(end);
-		if (rangeKey === "12m") return { rangeStart: addMonths(end, -11), rangeEnd: end };
-		const start = startOfMonth(earliestDate);
-		return { rangeStart: start, rangeEnd: end };
-	}, [hasData, latestDate, earliestDate, granularity, rangeKey]);
+		return { rangeStart: startOfDay(earliestDate), rangeEnd: today };
+	}, [hasData, earliestDate, rangeKey]);
 
-	// Build continuous series between start/end
+	// Build continuous series between start/end - always daily
 	const series = useMemo(() => {
 		const out = [];
 		if (!hasData) return out;
 		let cursor = new Date(rangeStart);
 		while (cursor <= rangeEnd) {
-			let key, next;
-			if (granularity === "day") { key = isoDate(cursor); next = addDays(cursor, 1); }
-			else if (granularity === "week") { key = weekKey(cursor); next = addWeeks(cursor, 1); }
-			else { key = monthKey(cursor); next = addMonths(cursor, 1); }
+			const key = isoDate(cursor);
+			const next = addDays(cursor, 1);
 			out.push({ key, amount: sumByBucket.get(key) || 0, labelDate: new Date(cursor) });
 			cursor = next;
 		}
 		return out;
-	}, [sumByBucket, rangeStart, rangeEnd, hasData, granularity]);
+	}, [sumByBucket, rangeStart, rangeEnd, hasData]);
 
-	// Active-only filter
-	const dSeries = useMemo(() => (activeOnly ? series.filter((d) => d.amount > 0) : series), [series, activeOnly]);
+	const dSeries = series;
 
 	// Totals (range + lifetime)
 	const totals = useMemo(() => {
@@ -185,7 +183,9 @@ export default function PerformanceChart({ transactions = [] }) {
 		const max = Math.max(0, ...dSeries.map((d) => d.amount));
 		const best = dSeries.reduce((acc, d) => (d.amount > (acc?.amount || 0) ? d : acc), null);
 		const lifetime = tips.reduce((s, t) => s + t.amount, 0);
-		return { sum, max, best, lifetime };
+		// Check if we have any non-zero data
+		const hasNonZeroData = dSeries.some(d => d.amount > 0);
+		return { sum, max, best, lifetime, hasNonZeroData };
 	}, [dSeries, tips]);
 
 	// Chart dims and scales
@@ -194,22 +194,31 @@ export default function PerformanceChart({ transactions = [] }) {
 	const pad = 24;
 	const innerW = width - pad * 2;
 	const innerH = height - pad * 2;
-	const maxY = Math.max(10, totals.max * 1.1);
+	// When there's no data, use a fixed scale; otherwise use actual max
+	const maxY = totals.hasNonZeroData ? Math.max(10, totals.max * 1.1) : 100;
 	const xStep = dSeries.length > 1 ? innerW / (dSeries.length - 1) : 0;
 	const yScale = (v) => innerH - (v / maxY) * innerH;
 
 	const linePath = useMemo(() => {
 		if (dSeries.length === 0) return "";
-		const parts = dSeries.map((d, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${pad + yScale(d.amount)}`);
+		// Always render line even if all values are 0 - this creates the baseline
+		const parts = dSeries.map((d, i) => {
+			const yPos = pad + yScale(d.amount);
+			return `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${yPos}`;
+		});
 		return parts.join(" ");
-	}, [dSeries, xStep]);
+	}, [dSeries, xStep, pad, yScale]);
 
 	const areaPath = useMemo(() => {
 		if (dSeries.length === 0) return "";
-		const top = dSeries.map((d, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${pad + yScale(d.amount)}`).join(" ");
+		// Create area fill even for zero values
+		const top = dSeries.map((d, i) => {
+			const yPos = pad + yScale(d.amount);
+			return `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${yPos}`;
+		}).join(" ");
 		const bottom = `L ${pad + (dSeries.length - 1) * xStep} ${pad + innerH} L ${pad} ${pad + innerH} Z`;
 		return `${top} ${bottom}`;
-	}, [dSeries, xStep, innerH]);
+	}, [dSeries, xStep, innerH, pad, yScale]);
 
 	// Hover / touch
 	const onPosChange = (clientX, currentTarget) => {
@@ -230,12 +239,12 @@ export default function PerformanceChart({ transactions = [] }) {
 	}, [hoverX, xStep, dSeries.length]);
 	const hoverPoint = hoverIndex != null ? dSeries[hoverIndex] : null;
 
-	const rangeButtons =
-		granularity === "day"
-			? [ { key: "7d", label: "7D" }, { key: "30d", label: "30D" }, { key: "all", label: "All" } ]
-			: granularity === "week"
-			? [ { key: "12w", label: "12W" }, { key: "all", label: "All" } ]
-			: [ { key: "12m", label: "12M" }, { key: "all", label: "All" } ];
+	const rangeButtons = [
+		{ key: "7d", label: "7 Days" },
+		{ key: "month", label: "This Month" },
+		{ key: "year", label: "This Year" },
+		{ key: "all", label: "All Time" }
+	];
 
 	return (
 		<Card className="border-none shadow-lg w-full overflow-hidden bg-gradient-to-br from-white to-blue-50/30">
@@ -247,92 +256,32 @@ export default function PerformanceChart({ transactions = [] }) {
 					<CardTitle className="text-xl">Performance Analytics</CardTitle>
 				</div>
 
-				{/* Mobile-First Controls */}
-				<div className="space-y-3">
-					{/* Granularity Selector - Full width on mobile */}
-					<div className="flex flex-col sm:flex-row sm:items-center gap-2">
-						<span className="text-xs font-medium text-gray-600 uppercase tracking-wide flex items-center gap-1">
-							<Calendar className="w-3 h-3" />
-							View By
-						</span>
-						<div className="grid grid-cols-3 gap-1 sm:inline-flex sm:rounded-lg sm:border sm:border-gray-200 sm:overflow-hidden sm:shadow-sm flex-1 sm:flex-none">
-							{[{ key: "day", label: "Day" }, { key: "week", label: "Week" }, { key: "month", label: "Month" }].map((g) => (
-								<button
-									key={g.key}
-									className={`px-3 py-2.5 sm:py-2 text-sm font-medium transition-all rounded-lg sm:rounded-none ${
-										granularity === g.key 
-											? "bg-blue-600 text-white shadow-md sm:shadow-none" 
-											: "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 sm:border-0"
-									}`}
-									onClick={() => { 
-										setGranularity(g.key); 
-										if (g.key === "day") setRangeKey("7d"); 
-										else if (g.key === "week") setRangeKey("12w"); 
-										else setRangeKey("12m"); 
-									}}
-								>
-									{g.label}
-								</button>
-							))}
-						</div>
-					</div>
-
-					{/* Range & Active Filter - Side by side on mobile */}
-					<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-						<span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Range</span>
-						<div className="flex gap-1 sm:gap-2 flex-1 sm:flex-none">
-							<div className="flex gap-1 flex-1 sm:inline-flex sm:rounded-lg sm:border sm:border-gray-200 sm:overflow-hidden sm:shadow-sm">
-								{rangeButtons.map((r) => (
-									<button
-										key={r.key}
-										className={`flex-1 sm:flex-none px-3 py-2.5 sm:py-2 text-sm font-medium transition-all rounded-lg sm:rounded-none ${
-											rangeKey === r.key 
-												? "bg-emerald-600 text-white shadow-md sm:shadow-none" 
-												: "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 sm:border-0"
-										}`}
-										onClick={() => setRangeKey(r.key)}
-									>
-										{r.label}
-									</button>
-								))}
-							</div>
-							
-							{/* Active Filter Button */}
+				{/* Simplified Range Selector */}
+				<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+					<span className="text-xs font-medium text-gray-600 uppercase tracking-wide flex items-center gap-1">
+						<Calendar className="w-3 h-3" />
+						Time Period
+					</span>
+					<div className="grid grid-cols-2 sm:flex gap-2 flex-1 sm:flex-none">
+						{rangeButtons.map((r) => (
 							<button
-								className={`px-3 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition-all shadow-sm border ${
-									activeOnly 
-										? "bg-purple-600 text-white border-purple-600" 
-										: "bg-white text-gray-700 hover:bg-gray-50 border-gray-200"
+								key={r.key}
+								className={`px-4 py-2.5 sm:py-2 text-sm font-medium transition-all rounded-lg shadow-sm ${
+									rangeKey === r.key 
+										? "bg-blue-600 text-white shadow-md" 
+										: "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
 								}`}
-								onClick={() => setActiveOnly((v) => !v)}
-								title="Show only periods with tips"
+								onClick={() => setRangeKey(r.key)}
 							>
-								<span className="hidden sm:inline">{activeOnly ? "Active Only" : "All"}</span>
-								<span className="sm:hidden">📊</span>
+								{r.label}
 							</button>
-						</div>
+						))}
 					</div>
 				</div>
 			</CardHeader>
 
 			<CardContent className="pt-0">
-				{!hasData ? (
-					<div className="flex flex-col items-center justify-center py-12 text-center">
-						<div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-							<TrendingUp className="w-8 h-8 text-gray-400" />
-						</div>
-						<p className="text-gray-600 font-medium">No performance data yet</p>
-						<p className="text-sm text-gray-500 mt-1">Start receiving tips to see your analytics</p>
-					</div>
-				) : dSeries.length === 0 ? (
-					<div className="flex flex-col items-center justify-center py-12 text-center">
-						<div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-							<Calendar className="w-8 h-8 text-blue-600" />
-						</div>
-						<p className="text-gray-600 font-medium">No data in this range</p>
-						<p className="text-sm text-gray-500 mt-1">Try selecting a different time period</p>
-					</div>
-				) : (
+				{(
 					<div ref={containerRef} className="w-full min-w-0">
 						{/* Stats Cards - Mobile Optimized */}
 						<div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-4">
@@ -348,39 +297,49 @@ export default function PerformanceChart({ transactions = [] }) {
 								<div className="text-lg sm:text-xl font-bold text-purple-900">{formatCedi(totals.lifetime)}</div>
 							</div>
 
-							{/* Best Period */}
-							{totals.best && (
+							{/* Best Day */}
+							{totals.best && totals.best.amount > 0 ? (
 								<div className="col-span-2 lg:col-span-1 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-3 border border-emerald-200/50">
 									<div className="flex items-center gap-1 mb-1">
 										<Award className="w-3 h-3 text-emerald-600" />
-										<div className="text-xs text-emerald-600 font-medium">Best {granularity}</div>
+										<div className="text-xs text-emerald-600 font-medium">Best Day</div>
 									</div>
 									<div className="text-lg sm:text-xl font-bold text-emerald-900">{formatCedi(totals.best.amount)}</div>
 									<div className="text-xs text-emerald-600 mt-0.5 truncate">
-										{humanLabel(totals.best.labelDate || dSeries.find(d=>d.amount===totals.best.amount)?.labelDate, granularity)}
+										{humanLabel(totals.best.labelDate || dSeries.find(d=>d.amount===totals.best.amount)?.labelDate, "day")}
 									</div>
+								</div>
+							) : (
+								<div className="col-span-2 lg:col-span-1 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-3 border border-gray-200/50">
+									<div className="flex items-center gap-1 mb-1">
+										<Award className="w-3 h-3 text-gray-400" />
+										<div className="text-xs text-gray-600 font-medium">Best Day</div>
+									</div>
+									<div className="text-lg sm:text-xl font-bold text-gray-700">{formatCedi(0)}</div>
+									<div className="text-xs text-gray-500 mt-0.5">No data yet</div>
 								</div>
 							)}
 
 							{/* Data Points */}
 							<div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-3 border border-gray-200/50 lg:col-span-1 col-span-2 lg:block">
-								<div className="text-xs text-gray-600 font-medium mb-1">Data Points</div>
+								<div className="text-xs text-gray-600 font-medium mb-1">Days Shown</div>
 								<div className="text-lg sm:text-xl font-bold text-gray-900">
-									{dSeries.length} {granularity === "day" ? "days" : granularity === "week" ? "weeks" : "months"}
+									{dSeries.length} days
 								</div>
 							</div>
 						</div>
 
-						{/* Chart Container */}
+						{/* Chart Container - Full width, larger for better visibility */}
 						<div className="relative bg-white rounded-xl p-3 sm:p-4 border border-gray-100 shadow-sm">
-							<svg
-								viewBox={`0 0 ${width} ${height}`}
-								className="w-full h-48 sm:h-56 md:h-64 select-none touch-none"
-								onMouseMove={onMouseMove}
-								onMouseLeave={onMouseLeave}
-								onTouchMove={onTouchMove}
-								onTouchEnd={onTouchEnd}
-							>
+							<div className="w-full">
+								<svg
+									viewBox={`0 0 ${width} ${height}`}
+									className="w-full h-80 sm:h-96 md:h-[28rem] select-none touch-none"
+									onMouseMove={onMouseMove}
+									onMouseLeave={onMouseLeave}
+									onTouchMove={onTouchMove}
+									onTouchEnd={onTouchEnd}
+								>
 								<defs>
 									<linearGradient id="perfFill" x1="0" x2="0" y1="0" y2="1">
 										<stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
@@ -413,25 +372,27 @@ export default function PerformanceChart({ transactions = [] }) {
 									/>
 								))}
 
-								{/* Area fill */}
-								<path d={areaPath} fill="url(#perfFill)" />
+								{/* Area fill - show even with zero data */}
+								{areaPath && <path d={areaPath} fill="url(#perfFill)" />}
 								
-								{/* Line with glow effect */}
-								<path 
-									d={linePath} 
-									fill="none" 
-									stroke="url(#perfLine)" 
-									strokeWidth="3" 
-									strokeLinejoin="round" 
-									strokeLinecap="round"
-									filter="url(#glow)"
-								/>
+								{/* Line with glow effect - continuous line always visible */}
+								{linePath && (
+									<path 
+										d={linePath} 
+										fill="none" 
+										stroke="url(#perfLine)" 
+										strokeWidth="3"
+										strokeLinejoin="round" 
+										strokeLinecap="round"
+										filter="url(#glow)"
+									/>
+								)}
 
 								{/* X-axis labels */}
 								{dSeries.map((d, i) => (i % Math.max(1, Math.round(dSeries.length / (width > 640 ? 6 : 4))) === 0) ? (
 									<g key={d.key} transform={`translate(${pad + i * xStep}, ${height - pad + 14})`}>
 										<text textAnchor="middle" fontSize="10" fill="#6b7280" className="font-medium">
-											{humanTick(d.labelDate, granularity)}
+											{humanTick(d.labelDate, "day")}
 										</text>
 									</g>
 								) : null)}
@@ -459,33 +420,38 @@ export default function PerformanceChart({ transactions = [] }) {
 										/>
 									</g>
 								)}
-							</svg>
+								</svg>
 
-							{/* Hover tooltip - Better positioned for mobile */}
-							{hoverPoint && (
-								<div 
-									className="absolute z-10 pointer-events-none"
-									style={{ 
-										left: `${((pad + hoverIndex * xStep) / width) * 100}%`,
-										top: '8px',
-										transform: 'translateX(-50%)'
-									}}
-								>
-									<div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700">
-										<div className="text-xs font-medium text-slate-300 mb-0.5">
-											{humanLabel(hoverPoint.labelDate, granularity)}
+								{/* Hover tooltip - Better positioned for mobile */}
+								{hoverPoint && (
+									<div 
+										className="absolute z-10 pointer-events-none"
+										style={{ 
+											left: `${((pad + hoverIndex * xStep) / width) * 100}%`,
+											top: '8px',
+											transform: 'translateX(-50%)'
+										}}
+									>
+										<div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700">
+											<div className="text-xs font-medium text-slate-300 mb-0.5">
+												{humanLabel(hoverPoint.labelDate, "day")}
+											</div>
+											<div className="text-sm font-bold">{formatCedi(hoverPoint.amount)}</div>
 										</div>
-										<div className="text-sm font-bold">{formatCedi(hoverPoint.amount)}</div>
+										{/* Arrow pointer */}
+										<div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 mx-auto"></div>
 									</div>
-									{/* Arrow pointer */}
-									<div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 mx-auto"></div>
-								</div>
-							)}
+								)}
+							</div>
 						</div>
 
 						{/* Info note */}
 						<div className="mt-3 text-xs text-gray-500 text-center bg-gray-50 rounded-lg px-3 py-2">
-							💡 Chart shows net amounts (after 20% platform fee). Tap/hover on chart for details.
+							{totals.hasNonZeroData ? (
+								<>💡 Chart shows net amounts (after 20% platform fee). Tap/hover on chart for details.</>
+							) : (
+								<>📊 Chart shows your earning trends. Currently showing baseline - start receiving tips to see growth!</>
+							)}
 						</div>
 					</div>
 				)}
