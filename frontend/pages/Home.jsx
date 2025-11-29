@@ -42,7 +42,7 @@ export default function Home() {
     {
       icon: Smartphone,
       title: "Mobile-First",
-      description: "Designed for TikTok creators with a mobile-optimized experience"
+      description: "Designed for live creators, DJs, and venue staff with a mobile-optimized experience"
     }
   ];
 
@@ -61,14 +61,14 @@ export default function Home() {
             </div>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
-              Turn Your TikTok
+              Turn Your Talent
               <span className="block bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
                 Into Your Income
               </span>
             </h1>
             
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              Built for TikTok creators. Get tips, track earnings, and withdraw instantly.
+              Built for creators, DJs, and service pros. Get tips, track earnings, and withdraw instantly.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -112,7 +112,7 @@ export default function Home() {
                   <div className="w-10 h-10 rounded-xl bg-gray-600 flex items-center justify-center">
                     <Heart className="w-6 h-6 text-white" />
                   </div>
-                  <h3 className="text-lg font-semibold">TikTok Gifts</h3>
+                  <h3 className="text-lg font-semibold">Livestream Gifts</h3>
                 </div>
                 <p className="text-gray-700"><span className="font-semibold">~50% to creators</span></p>
                 <p className="text-gray-500 text-sm mt-1">Example: GH₵50 gift → <span className="font-medium text-gray-700">~GH₵25 to you</span></p>
@@ -170,7 +170,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-4">Create Your Profile</h3>
               <p className="text-gray-600">
-                Sign up with your TikTok handle and create a profile that showcases your unique content style
+                Sign up with your public handle and create a profile that showcases your unique style
               </p>
             </div>
             
@@ -204,7 +204,7 @@ export default function Home() {
             Ready to Start Earning?
           </h2>
           <p className="text-xl text-white/90 mb-8">
-            Join thousands of creators who are already monetizing their TikTok Live content
+            Join thousands of creators, DJs, and staff who are already monetizing their live moments
           </p>
           <Link to={loggedIn ? "/creator" : "/auth?mode=register"}>
             <Button size="lg" className="bg-gradient-to-r from-amber-400 to-yellow-500 text-gray-900 hover:from-amber-500 hover:to-yellow-600 shadow-lg ring-1 ring-amber-300 px-8 py-3 text-lg font-semibold">

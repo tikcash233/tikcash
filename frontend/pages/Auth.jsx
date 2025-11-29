@@ -42,7 +42,7 @@ export default function Auth() {
       // client-side validation
       const nextErrors = {};
       if (mode === 'register') {
-        if (!tiktokUsername.trim()) nextErrors.tiktokUsername = 'TikTok username is required.';
+        if (!tiktokUsername.trim()) nextErrors.tiktokUsername = 'Creator handle is required.';
         if (!displayName.trim()) nextErrors.displayName = 'Display name is required.';
         const ph = String(phone || '');
         if (!/^\+233\d{9}$/.test(ph)) nextErrors.phone = 'Enter a valid Ghana number as +233 then 9 digits (e.g., +233241234567).';
@@ -67,7 +67,7 @@ export default function Auth() {
         if (resp && resp.creatorCreated === false && resp.creatorError) {
           // Show friendly guidance if the creator profile wasn't auto-created
           if (resp.creatorError === 'tiktok_username_taken') {
-            error('Creator profile was not created: TikTok username already taken. You can claim it later or choose a different username.');
+            error('Creator profile was not created: handle already taken. You can claim it later or choose a different handle.');
           } else if (resp.creatorError === 'phone_in_use') {
             error('Creator profile was not created: phone number already in use.');
           }
@@ -108,7 +108,7 @@ export default function Auth() {
             {/* Only creator registration allowed */}
             <div className="space-y-3">
               <div>
-                <label className="block text-sm text-gray-700 mb-1">TikTok Username</label>
+                <label className="block text-sm text-gray-700 mb-1">Public Handle</label>
                 <Input value={tiktokUsername} onChange={(e)=>{ setTiktokUsername(e.target.value); if (errors.tiktokUsername) setErrors(prev=>({ ...prev, tiktokUsername: undefined })); }} placeholder="e.g. kwesi_comedy" />
                 {errors.tiktokUsername && (<p className="text-sm text-red-600 mt-1">{errors.tiktokUsername}</p>)}
               </div>

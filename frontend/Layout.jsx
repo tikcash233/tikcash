@@ -286,7 +286,7 @@ export default function Layout({ children, currentPageName }) {
                     <Logo variant="dark" tagline="Creator Platform" />
                   </div>
                   <p className="text-gray-400 mb-4">
-                    Empowering TikTok creators to monetize their content and
+                    Empowering creators, DJs, and service teams to monetize their craft and
                     connect with supporters worldwide.
                   </p>
                 </div>

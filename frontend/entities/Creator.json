@@ -4,7 +4,7 @@
   "properties": {
     "tiktok_username": {
       "type": "string",
-      "description": "TikTok handle without @"
+      "description": "Public handle without @"
     },
     "display_name": {
       "type": "string",
@@ -20,7 +20,7 @@
     },
     "follower_count": {
       "type": "number",
-      "description": "Number of TikTok followers"
+      "description": "Number of followers on your primary platform"
     },
     "total_earnings": {
       "type": "number",

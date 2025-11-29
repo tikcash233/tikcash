@@ -184,7 +184,7 @@ export default function SupporterDashboard() {
           <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
             Support Your Favorite 
             <span className="block bg-gradient-to-r from-red-600 via-yellow-500 to-green-600 bg-clip-text text-transparent">
-              TikTok Creators
+              Creators & Hosts
             </span>
           </h1>
          
@@ -200,7 +200,7 @@ export default function SupporterDashboard() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">Find and Tip Creators</h3>
-                <p className="text-gray-600 text-sm">Use the search bar below to discover TikTok creators and send them your support instantly. No account needed!</p>
+                <p className="text-gray-600 text-sm">Use the search bar below to discover creators, DJs, or service staff and send them your support instantly. No account needed!</p>
               </div>
             </div>
           </div>

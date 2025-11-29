@@ -156,7 +156,7 @@ export default function CreatorProfile({ onCreateProfile }) {
 						</div>
 					</div>
 					<div>
-						<label className="block text-sm font-medium text-gray-700">TikTok Username</label>
+						<label className="block text-sm font-medium text-gray-700">Public Handle</label>
 						<Input
 							name="tiktok_username"
 							placeholder="e.g. kwesi_comedy"

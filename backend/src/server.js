@@ -745,7 +745,10 @@ app.post('/api/auth/register', async (req, res, next) => {
     const ex = await pool.query('SELECT id FROM creators WHERE lower(tiktok_username) = lower($1) LIMIT 1', [t]);
     if (ex.rows && ex.rows.length > 0) {
       // Return a concise, machine-friendly error so frontend can show appropriate UI
-      return res.status(409).json({ error: 'tiktok_username taken, Choose a different TikTok username.', message: 'Choose a different TikTok username.' });
+      return res.status(409).json({
+        error: 'Creator handle already taken. Choose a different handle.',
+        code: 'tiktok_username_taken'
+      });
     }
   }
   // If an ADMIN_USER_EMAIL is configured, auto-assign that email the admin role
@@ -783,7 +786,10 @@ app.post('/api/auth/register', async (req, res, next) => {
             const msg = String(err.message || '').toLowerCase();
             if (msg.includes('tiktok_username')) {
               // If the DB insert failed due to username collision, return a clear response to the client
-              return res.status(409).json({ error: 'tiktok_username_taken', message: 'Choose a different TikTok username.' });
+              return res.status(409).json({
+                error: 'Creator handle already taken. Choose a different handle.',
+                code: 'tiktok_username_taken'
+              });
             } else if (msg.includes('phone_number')) {
               creatorError = 'phone_in_use';
             } else {
@@ -1315,7 +1321,7 @@ app.use((err, req, res, _next) => {
   // Duplicate key (unique constraint) -> return friendly conflict
   if (err.code === '23505') {
     const msg = err.constraint === 'creators_tiktok_username_key'
-      ? 'TikTok username already exists. Choose a different one.'
+      ? 'Creator handle already exists. Choose a different one.'
       : 'Duplicate value violates a unique constraint.';
     return res.status(409).json({ error: msg });
   }
