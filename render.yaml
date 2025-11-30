@@ -1,3 +1,4 @@
+specVersion: v1
 services:
   - type: static_site
     name: tikcash
