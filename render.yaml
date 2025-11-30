@@ -1,6 +1,6 @@
 services:
   - type: static_site
-    name: tikcash-frontend
+    name: tikcash
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
