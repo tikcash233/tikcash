@@ -220,15 +220,25 @@ export default function PerformanceChart({ transactions = [] }) {
 		return `${top} ${bottom}`;
 	}, [dSeries, xStep, innerH, pad, yScale]);
 
-	// Hover / touch
+	// Hover / touch - improved for mobile accuracy
 	const onPosChange = (clientX, currentTarget) => {
 		const rect = currentTarget.getBoundingClientRect();
-		const x = clientX - rect.left;
+		// Account for the SVG viewBox scaling
+		const svgWidth = rect.width;
+		const scaleX = width / svgWidth;
+		const x = (clientX - rect.left) * scaleX;
 		setHoverX(Math.max(pad, Math.min(width - pad, x)));
 	};
 	const onMouseMove = (e) => onPosChange(e.clientX, e.currentTarget);
 	const onMouseLeave = () => setHoverX(null);
-	const onTouchMove = (e) => { const t = e.touches[0]; if (t) onPosChange(t.clientX, e.currentTarget); };
+	const onTouchStart = (e) => {
+		const t = e.touches[0];
+		if (t) onPosChange(t.clientX, e.currentTarget);
+	};
+	const onTouchMove = (e) => {
+		const t = e.touches[0];
+		if (t) onPosChange(t.clientX, e.currentTarget);
+	};
 	const onTouchEnd = () => setHoverX(null);
 
 	const hoverIndex = useMemo(() => {
@@ -238,6 +248,13 @@ export default function PerformanceChart({ transactions = [] }) {
 		return Math.max(0, Math.min(dSeries.length - 1, idx));
 	}, [hoverX, xStep, dSeries.length]);
 	const hoverPoint = hoverIndex != null ? dSeries[hoverIndex] : null;
+
+	const hoverPosition = useMemo(() => {
+		if (hoverPoint == null) return null;
+		const svgX = pad + hoverIndex * xStep;
+		const svgY = pad + yScale(hoverPoint.amount);
+		return { svgX, svgY };
+	}, [hoverPoint, hoverIndex, xStep, pad, yScale]);
 
 	const rangeButtons = [
 		{ key: "7d", label: "7 Days" },
@@ -329,14 +346,16 @@ export default function PerformanceChart({ transactions = [] }) {
 							</div>
 						</div>
 
-						{/* Chart Container - Full width, larger for better visibility */}
-						<div className="relative bg-white rounded-xl p-3 sm:p-4 border border-gray-100 shadow-sm">
-							<div className="w-full">
+						{/* Chart Container - Horizontally scrollable on mobile for better readability */}
+						<div className="relative bg-white rounded-xl p-2 sm:p-4 border border-gray-100 shadow-sm -mx-4 sm:mx-0 overflow-x-auto">
+							<div className="min-w-[600px] sm:min-w-0 w-full">
 								<svg
 									viewBox={`0 0 ${width} ${height}`}
-									className="w-full h-80 sm:h-96 md:h-[28rem] select-none touch-none"
+									className="w-full h-[350px] sm:h-[400px] md:h-[450px] lg:h-[500px]"
+									style={{ touchAction: 'none' }}
 									onMouseMove={onMouseMove}
 									onMouseLeave={onMouseLeave}
+									onTouchStart={onTouchStart}
 									onTouchMove={onTouchMove}
 									onTouchEnd={onTouchEnd}
 								>
@@ -423,14 +442,21 @@ export default function PerformanceChart({ transactions = [] }) {
 								</svg>
 
 								{/* Hover tooltip - Better positioned for mobile */}
-								{hoverPoint && (
+								{hoverPoint && hoverPosition && (
+									(() => {
+										const hoverXPct = (hoverPosition.svgX / width) * 100;
+										const hoverYPct = (hoverPosition.svgY / height) * 100;
+										const offsetPct = (42 / height) * 100; // keep tooltip ~42px above point
+										const clampedLeft = Math.min(95, Math.max(5, hoverXPct));
+										const clampedTop = Math.max(2, hoverYPct - offsetPct);
+										return (
 									<div 
 										className="absolute z-10 pointer-events-none"
-										style={{ 
-											left: `${((pad + hoverIndex * xStep) / width) * 100}%`,
-											top: '8px',
-											transform: 'translateX(-50%)'
-										}}
+											style={{ 
+												left: `${clampedLeft}%`,
+												top: `${clampedTop}%`,
+												transform: 'translate(-50%, -4px)'
+											}}
 									>
 										<div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700">
 											<div className="text-xs font-medium text-slate-300 mb-0.5">
@@ -441,7 +467,9 @@ export default function PerformanceChart({ transactions = [] }) {
 										{/* Arrow pointer */}
 										<div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 mx-auto"></div>
 									</div>
-								)}
+									);
+								})()
+							)}
 							</div>
 						</div>
 
