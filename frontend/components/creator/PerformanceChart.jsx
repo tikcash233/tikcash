@@ -81,10 +81,9 @@ export default function PerformanceChart({ transactions = [] }) {
 	};
 	
 	// Controls
-	const [granularity, setGranularity] = useState("day"); // 'day' | 'week' | 'month'
+	const granularity = "day"; // permanently daily buckets for the simplified chart
 	// Default to 7d instead of 30d
-	const [rangeKey, setRangeKey] = useState("7d"); // day: 7d/30d/all, week: 12w/all, month: 12m/all
-	const [activeOnly, setActiveOnly] = useState(false);
+	const [rangeKey, setRangeKey] = useState("7d"); // simplified choices: 7d or current month
 	const [hoverX, setHoverX] = useState(null);
 	const containerRef = useRef(null);
 
@@ -135,31 +134,16 @@ export default function PerformanceChart({ transactions = [] }) {
 		return m;
 	}, [tips, granularity]);
 
-	// Range - Simplified to 4 options, always use current date as end
+	// Range - Only last 7 days or current month (mobile-first simplified view)
 	const { rangeStart, rangeEnd } = useMemo(() => {
 		const now = new Date();
 		const today = startOfDay(now);
-		
-		if (rangeKey === "7d") {
-			// Last 7 days including today
-			return { rangeStart: addDays(today, -6), rangeEnd: today };
-		}
 		if (rangeKey === "month") {
-			// Current month from 1st to today
-			const monthStart = startOfMonth(now);
-			return { rangeStart: monthStart, rangeEnd: today };
+			return { rangeStart: startOfMonth(now), rangeEnd: today };
 		}
-		if (rangeKey === "year") {
-			// Current year from Jan 1 to today
-			const yearStart = new Date(now.getFullYear(), 0, 1);
-			return { rangeStart: startOfDay(yearStart), rangeEnd: today };
-		}
-		// all time - from first transaction to today (or just today if no data)
-		if (!hasData) {
-			return { rangeStart: today, rangeEnd: today };
-		}
-		return { rangeStart: startOfDay(earliestDate), rangeEnd: today };
-	}, [hasData, earliestDate, rangeKey]);
+		// Default to 7 days (including today)
+		return { rangeStart: addDays(today, -6), rangeEnd: today };
+	}, [rangeKey]);
 
 	// Build continuous series between start/end - always daily
 	const series = useMemo(() => {
@@ -188,37 +172,18 @@ export default function PerformanceChart({ transactions = [] }) {
 		return { sum, max, best, lifetime, hasNonZeroData };
 	}, [dSeries, tips]);
 
-	// Chart dims and scales
-	const width = 800;
-	const height = 220;
-	const pad = 24;
+	// Chart dims and scales (optimized for bar chart on mobile)
+	const width = 860;
+	const height = 260;
+	const pad = 28;
 	const innerW = width - pad * 2;
 	const innerH = height - pad * 2;
-	// When there's no data, use a fixed scale; otherwise use actual max
-	const maxY = totals.hasNonZeroData ? Math.max(10, totals.max * 1.1) : 100;
-	const xStep = dSeries.length > 1 ? innerW / (dSeries.length - 1) : 0;
+	const maxY = totals.hasNonZeroData ? Math.max(25, totals.max * 1.2) : 50;
+	const xStep = dSeries.length > 0 ? innerW / dSeries.length : 0;
 	const yScale = (v) => innerH - (v / maxY) * innerH;
+	const barWidth = dSeries.length > 0 ? Math.max(8, xStep * 0.55) : 0;
+	const barOffset = xStep > 0 ? (xStep - barWidth) / 2 : 0;
 
-	const linePath = useMemo(() => {
-		if (dSeries.length === 0) return "";
-		// Always render line even if all values are 0 - this creates the baseline
-		const parts = dSeries.map((d, i) => {
-			const yPos = pad + yScale(d.amount);
-			return `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${yPos}`;
-		});
-		return parts.join(" ");
-	}, [dSeries, xStep, pad, yScale]);
-
-	const areaPath = useMemo(() => {
-		if (dSeries.length === 0) return "";
-		// Create area fill even for zero values
-		const top = dSeries.map((d, i) => {
-			const yPos = pad + yScale(d.amount);
-			return `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${yPos}`;
-		}).join(" ");
-		const bottom = `L ${pad + (dSeries.length - 1) * xStep} ${pad + innerH} L ${pad} ${pad + innerH} Z`;
-		return `${top} ${bottom}`;
-	}, [dSeries, xStep, innerH, pad, yScale]);
 
 	// Hover / touch - improved for mobile accuracy
 	const onPosChange = (clientX, currentTarget) => {
@@ -251,16 +216,16 @@ export default function PerformanceChart({ transactions = [] }) {
 
 	const hoverPosition = useMemo(() => {
 		if (hoverPoint == null) return null;
-		const svgX = pad + hoverIndex * xStep;
-		const svgY = pad + yScale(hoverPoint.amount);
-		return { svgX, svgY };
-	}, [hoverPoint, hoverIndex, xStep, pad, yScale]);
+		const centerX = pad + hoverIndex * xStep + (xStep / 2 || 0);
+		const rawY = pad + yScale(hoverPoint.amount);
+		const baselineY = pad + innerH - 4;
+		const svgY = hoverPoint.amount > 0 ? rawY : baselineY;
+		return { svgX: centerX, svgY };
+	}, [hoverPoint, hoverIndex, xStep, pad, yScale, innerH]);
 
 	const rangeButtons = [
-		{ key: "7d", label: "7 Days" },
-		{ key: "month", label: "This Month" },
-		{ key: "year", label: "This Year" },
-		{ key: "all", label: "All Time" }
+		{ key: "7d", label: "Last 7 Days" },
+		{ key: "month", label: "This Month" }
 	];
 
 	return (
@@ -298,20 +263,13 @@ export default function PerformanceChart({ transactions = [] }) {
 			</CardHeader>
 
 			<CardContent className="pt-0">
-				{(
-					<div ref={containerRef} className="w-full min-w-0">
+				<div ref={containerRef} className="w-full min-w-0">
 						{/* Stats Cards - Mobile Optimized */}
-						<div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-4">
+						<div className="grid grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-3 mb-4">
 							{/* Range Total */}
 							<div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-3 border border-blue-200/50">
 								<div className="text-xs text-blue-600 font-medium mb-1">Period Total</div>
 								<div className="text-lg sm:text-xl font-bold text-blue-900">{formatCedi(totals.sum)}</div>
-							</div>
-
-							{/* Lifetime */}
-							<div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-3 border border-purple-200/50">
-								<div className="text-xs text-purple-600 font-medium mb-1">Lifetime</div>
-								<div className="text-lg sm:text-xl font-bold text-purple-900">{formatCedi(totals.lifetime)}</div>
 							</div>
 
 							{/* Best Day */}
@@ -337,141 +295,125 @@ export default function PerformanceChart({ transactions = [] }) {
 								</div>
 							)}
 
-							{/* Data Points */}
-							<div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-3 border border-gray-200/50 lg:col-span-1 col-span-2 lg:block">
-								<div className="text-xs text-gray-600 font-medium mb-1">Days Shown</div>
-								<div className="text-lg sm:text-xl font-bold text-gray-900">
-									{dSeries.length} days
-								</div>
-							</div>
 						</div>
 
 						{/* Chart Container - Horizontally scrollable on mobile for better readability */}
-						<div className="relative bg-white rounded-xl p-2 sm:p-4 border border-gray-100 shadow-sm -mx-4 sm:mx-0 overflow-x-auto">
-							<div className="min-w-[600px] sm:min-w-0 w-full">
-								<svg
-									viewBox={`0 0 ${width} ${height}`}
-									className="w-full h-[350px] sm:h-[400px] md:h-[450px] lg:h-[500px]"
-									style={{ touchAction: 'none' }}
-									onMouseMove={onMouseMove}
-									onMouseLeave={onMouseLeave}
-									onTouchStart={onTouchStart}
-									onTouchMove={onTouchMove}
-									onTouchEnd={onTouchEnd}
-								>
-								<defs>
-									<linearGradient id="perfFill" x1="0" x2="0" y1="0" y2="1">
-										<stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
-										<stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
-									</linearGradient>
-									<linearGradient id="perfLine" x1="0" x2="1" y1="0" y2="0">
-										<stop offset="0%" stopColor="#3b82f6" />
-										<stop offset="100%" stopColor="#2563eb" />
-									</linearGradient>
-									<filter id="glow">
-										<feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-										<feMerge>
-											<feMergeNode in="coloredBlur"/>
-											<feMergeNode in="SourceGraphic"/>
-										</feMerge>
-									</filter>
-								</defs>
+						{dSeries.length === 0 ? (
+							<div className="bg-white rounded-xl border border-dashed border-gray-200 p-8 text-center text-gray-500">
+								No performance data in this range yet.
+							</div>
+						) : (
+							<div className="relative bg-white rounded-xl p-2 sm:p-4 border border-gray-100 shadow-sm -mx-4 sm:mx-0 overflow-x-auto">
+								<div className="min-w-[560px] sm:min-w-0 w-full">
+									<svg
+										viewBox={`0 0 ${width} ${height}`}
+										className="w-full h-[320px] sm:h-[360px] md:h-[400px] lg:h-[440px]"
+										style={{ touchAction: 'none' }}
+										onMouseMove={onMouseMove}
+										onMouseLeave={onMouseLeave}
+										onTouchStart={onTouchStart}
+										onTouchMove={onTouchMove}
+										onTouchEnd={onTouchEnd}
+									>
+										<defs>
+											<linearGradient id="barFill" x1="0" x2="0" y1="0" y2="1">
+												<stop offset="0%" stopColor="#60a5fa" />
+												<stop offset="100%" stopColor="#2563eb" />
+											</linearGradient>
+											<linearGradient id="barFillActive" x1="0" x2="0" y1="0" y2="1">
+												<stop offset="0%" stopColor="#a5b4fc" />
+												<stop offset="100%" stopColor="#4338ca" />
+											</linearGradient>
+											<filter id="barShadow" x="-50%" y="-50%" width="200%" height="200%">
+												<feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#1d4ed8" floodOpacity="0.15" />
+											</filter>
+										</defs>
 
-								{/* Grid lines */}
-								{[0.25, 0.5, 0.75, 1].map((p, i) => (
-									<line 
-										key={i} 
-										x1={pad} 
-										x2={width - pad} 
-										y1={pad + innerH * p} 
-										y2={pad + innerH * p} 
-										stroke="#e5e7eb" 
-										strokeWidth="1" 
-										strokeDasharray="4 2"
-									/>
-								))}
+										{/* Grid lines */}
+										{[0.25, 0.5, 0.75, 1].map((p, i) => (
+											<line
+												key={i}
+												x1={pad}
+												x2={width - pad}
+												y1={pad + innerH * p}
+												y2={pad + innerH * p}
+												stroke="#e5e7eb"
+												strokeWidth="1"
+												strokeDasharray="4 2"
+											/>
+										))}
 
-								{/* Area fill - show even with zero data */}
-								{areaPath && <path d={areaPath} fill="url(#perfFill)" />}
-								
-								{/* Line with glow effect - continuous line always visible */}
-								{linePath && (
-									<path 
-										d={linePath} 
-										fill="none" 
-										stroke="url(#perfLine)" 
-										strokeWidth="3"
-										strokeLinejoin="round" 
-										strokeLinecap="round"
-										filter="url(#glow)"
-									/>
-								)}
+										{/* Bars */}
+										{dSeries.map((d, i) => {
+											const barHeight = Math.max(4, innerH - yScale(d.amount));
+											const x = pad + i * xStep + barOffset;
+											const y = pad + innerH - barHeight;
+											const isActive = hoverIndex === i;
+											const centerX = pad + i * xStep + (xStep / 2 || 0);
+											return (
+												<g key={d.key}>
+													<rect
+														x={x}
+														y={y}
+														width={Math.max(6, barWidth)}
+														height={barHeight}
+														rx={Math.min(10, barWidth / 2)}
+														fill={isActive ? "url(#barFillActive)" : "url(#barFill)"}
+														opacity={d.amount === 0 ? 0.35 : 0.95}
+														filter="url(#barShadow)"
+													/>
+													{isActive && (
+														<rect
+															x={x - 2}
+															y={y - 2}
+															width={Math.max(6, barWidth) + 4}
+															height={barHeight + 4}
+															rx={Math.min(12, barWidth / 2 + 2)}
+															stroke="#1d4ed8"
+															strokeWidth="1.5"
+															fill="none"
+														/>
+													)}
 
-								{/* X-axis labels */}
-								{dSeries.map((d, i) => (i % Math.max(1, Math.round(dSeries.length / (width > 640 ? 6 : 4))) === 0) ? (
-									<g key={d.key} transform={`translate(${pad + i * xStep}, ${height - pad + 14})`}>
-										<text textAnchor="middle" fontSize="10" fill="#6b7280" className="font-medium">
-											{humanTick(d.labelDate, "day")}
-										</text>
-									</g>
-								) : null)}
+												{/* Subtle indicator dot at base for zero days */}
+												{d.amount === 0 && (
+													<circle cx={centerX} cy={pad + innerH + 4} r="3" fill="#94a3b8" opacity="0.6" />
+												)}
+											</g>
+											);
+										})}
 
-								{/* Hover indicators */}
-								{hoverPoint && (
-									<g>
-										<line 
-											x1={pad + hoverIndex * xStep} 
-											x2={pad + hoverIndex * xStep} 
-											y1={pad} 
-											y2={height - pad} 
-											stroke="#94a3b8" 
-											strokeWidth="2"
-											strokeDasharray="4 4" 
-										/>
-										<circle 
-											cx={pad + hoverIndex * xStep} 
-											cy={pad + yScale(hoverPoint.amount)} 
-											r="6" 
-											fill="#3b82f6" 
-											stroke="#fff" 
-											strokeWidth="3"
-											filter="url(#glow)"
-										/>
-									</g>
-								)}
-								</svg>
+										{/* X-axis labels */}
+										{dSeries.map((d, i) => (i % Math.max(1, Math.round(dSeries.length / (width > 640 ? 6 : 4))) === 0) ? (
+											<g key={d.key} transform={`translate(${pad + i * xStep + (xStep / 2 || 0)}, ${height - pad + 14})`}>
+												<text textAnchor="middle" fontSize="10" fill="#6b7280" className="font-medium">
+													{humanTick(d.labelDate, "day")}
+												</text>
+											</g>
+										) : null)}
+									</svg>
+								</div>
 
-								{/* Hover tooltip - Better positioned for mobile */}
-								{hoverPoint && hoverPosition && (
-									(() => {
-										const hoverXPct = (hoverPosition.svgX / width) * 100;
-										const hoverYPct = (hoverPosition.svgY / height) * 100;
-										const offsetPct = (42 / height) * 100; // keep tooltip ~42px above point
-										const clampedLeft = Math.min(95, Math.max(5, hoverXPct));
-										const clampedTop = Math.max(2, hoverYPct - offsetPct);
-										return (
-									<div 
-										className="absolute z-10 pointer-events-none"
-											style={{ 
-												left: `${clampedLeft}%`,
-												top: `${clampedTop}%`,
+									{hoverPoint && hoverPosition && (
+										<div
+											className="absolute z-10 pointer-events-none"
+											style={{
+												left: `${Math.min(95, Math.max(5, (hoverPosition.svgX / width) * 100))}%`,
+												top: `${Math.max(2, (hoverPosition.svgY / height) * 100 - (42 / height) * 100)}%`,
 												transform: 'translate(-50%, -4px)'
 											}}
-									>
-										<div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700">
-											<div className="text-xs font-medium text-slate-300 mb-0.5">
-												{humanLabel(hoverPoint.labelDate, "day")}
+										>
+											<div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl border border-slate-700">
+												<div className="text-xs font-medium text-slate-300 mb-0.5">
+													{humanLabel(hoverPoint.labelDate, "day")}
+												</div>
+												<div className="text-sm font-bold">{formatCedi(hoverPoint.amount)}</div>
 											</div>
-											<div className="text-sm font-bold">{formatCedi(hoverPoint.amount)}</div>
+											<div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 mx-auto"></div>
 										</div>
-										{/* Arrow pointer */}
-										<div className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900 mx-auto"></div>
-									</div>
-									);
-								})()
+									)}
+								</div>
 							)}
-							</div>
-						</div>
 
 						{/* Info note */}
 						<div className="mt-3 text-xs text-gray-500 text-center bg-gray-50 rounded-lg px-3 py-2">
@@ -482,7 +424,6 @@ export default function PerformanceChart({ transactions = [] }) {
 							)}
 						</div>
 					</div>
-				)}
 			</CardContent>
 		</Card>
 	);
