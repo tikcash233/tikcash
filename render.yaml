@@ -1,7 +1,6 @@
 specVersion: v1
-services:
-  - type: static_site
-    name: tikcash
+staticSites:
+  - name: tikcash
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
