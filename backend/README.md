@@ -55,7 +55,7 @@ Key exported values: `PORT`, `DATABASE_URL`, `JWT_SECRET`, `PAYSTACK_SECRET_KEY`
 - Put secrets in environment variables.
 - Migrations run once at deploy time.
 - App starts → `/readyz` OK → traffic flows.
-- Frontend hits only `/api/...` routes (Netlify rewrite points them at backend).
+- Frontend hits `/api/...` routes by using `VITE_API_URL` to point at the backend (Render static site attaches this during build).
 
 ### Northflank Deployment (Backend)
 1. Create a new service (Node 18+ runtime).
@@ -66,17 +66,17 @@ Key exported values: `PORT`, `DATABASE_URL`, `JWT_SECRET`, `PAYSTACK_SECRET_KEY`
 6. Add that URL to your `CORS_ORIGINS` (e.g. `https://your-svc--username.code.run`) and redeploy.
 7. (Optional) Create a job that runs `npm run migrate` before main deploy OR run it manually via a one‑off task.
 
-### Netlify Deployment (Frontend)
-1. In the frontend folder: ensure `netlify.toml` exists at repo root (**we placed it at project root**). If Netlify expects it at root, you are good.
-2. Build command: `npm run build` inside `frontend` directory (set base directory to `frontend`).
-3. Publish directory: `frontend/dist`.
-4. Environment var `VITE_API_URL` can be blank if you rely on Netlify proxy redirects; otherwise set it to your backend HTTPS URL.
-5. Update `netlify.toml` replacing `YOUR-NORTHFLANK-BACKEND-URL` with the actual backend URL.
+### Render Deployment (Frontend)
+1. Use a Render Static Site and point it at the `frontend/` directory (or connect via the included `render.yaml`).
+2. Build command: `npm install && npm run build`.
+3. Publish directory: `dist`.
+4. Add `VITE_API_URL` in the Render dashboard → Environment so the SPA calls your backend directly.
+5. Add a rewrite rule `/* -> /index.html` (already defined in `render.yaml`).
 
 ### Local Dev vs Production
 | Concern | Development | Production |
 |---------|------------|------------|
-| API base | `http://localhost:5000` | Northflank URL (proxied from Netlify) |
+| API base | `http://localhost:5000` | Backend HTTPS URL referenced by `VITE_API_URL` |
 | CORS | Allows localhost automatically + list | Only allow listed domains |
 | JWT secret | Dev fallback if missing | MUST be set (app exits if missing) |
 | Rate limiting | Disabled | Enabled (basic global) |
@@ -92,7 +92,7 @@ Key exported values: `PORT`, `DATABASE_URL`, `JWT_SECRET`, `PAYSTACK_SECRET_KEY`
 
 ### Paystack Callback URL
 Server constructs callback as: `PUBLIC_APP_URL + '/payment/result?ref=...'`.
-So ensure `PUBLIC_APP_URL` matches your Netlify site domain (e.g. `https://your-site.netlify.app` or custom domain).
+So ensure `PUBLIC_APP_URL` matches your Render static site domain (or custom domain).
 
 ### Common Issues
 | Symptom | Likely Cause | Fix |
@@ -265,7 +265,7 @@ Server-Sent Events (SSE) = a single always-open HTTP connection where the server
 - Added `/healthz` and `/readyz` endpoints.
 <!-- Removed debug endpoint before production -->
 - Added `.env.example` with required + optional vars.
-- Added `netlify.toml` with API proxy redirects.
+- Added `render.yaml` for Render static hosting.
 - Trust proxy enabled for production reverse proxy correctness.
 
 <!-- Debug endpoint already removed to keep surface minimal -->

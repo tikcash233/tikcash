@@ -63,7 +63,7 @@ function recordActivity() {
 }
 
 const app = express();
-// Trust proxy so rate limiting & secure cookies (if added later) work behind Netlify / Northflank proxies
+// Trust proxy so rate limiting & secure cookies (if added later) work behind Render / Northflank proxies
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(helmet());

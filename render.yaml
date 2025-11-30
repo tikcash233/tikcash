@@ -1,0 +1,15 @@
+services:
+  - type: static_site
+    name: tikcash-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: VITE_API_URL
+        value: https://tikcash.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

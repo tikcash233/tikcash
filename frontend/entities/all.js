@@ -15,7 +15,7 @@ const Bus = (() => {
   };
 })();
 
-// In production behind Netlify redirects we *want* empty string so relative /api works.
+// In production we prefer an absolute base (set VITE_API_URL in Render).
 // Only use localhost fallback during local dev when window.location.hostname is localhost.
 let detectedBase = '';
 if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
