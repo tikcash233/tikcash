@@ -1,6 +1,6 @@
 # TikCash Backend
 
-Production-ready Node.js API using Express and PostgreSQL (Neon) for the TikCash app.
+Production-ready Node.js API using Express and PostgreSQL (Neon) for the TikCash app with Backblaze B2 for creator profile assets.
 
 ## Features
 - Express API with secure defaults (helmet, CORS allowlist)
@@ -8,6 +8,7 @@ Production-ready Node.js API using Express and PostgreSQL (Neon) for the TikCash
 - SQL migrations runner
 - Zod request validation
 - Atomic balance updates for tips and withdrawals
+- Backblaze B2 (S3-compatible) uploads for creator profile images
 
 ## Setup (Step-by-step)
 1) Create a Postgres DB (Neon recommended – https://neon.tech)
@@ -15,6 +16,7 @@ Production-ready Node.js API using Express and PostgreSQL (Neon) for the TikCash
 2) Environment variables
    - Copy `.env.example` to `.env`.
    - Fill in: `DATABASE_URL`, `JWT_SECRET`, `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `PUBLIC_APP_URL`.
+   - Configure Backblaze credentials: `BACKBLAZE_KEY_ID`, `BACKBLAZE_APPLICATION_KEY`, `BACKBLAZE_REGION`, `BACKBLAZE_BUCKET_NAME` (defaults to `tikcashprofilepictures`). Optional: `BACKBLAZE_ENDPOINT`, `BACKBLAZE_PUBLIC_BASE_URL`.
    - Add your local / deployed frontend domains to `CORS_ORIGINS` (comma separated).
 3) Install dependencies
    - `npm install`
@@ -39,6 +41,15 @@ Platforms like Northflank / Kubernetes often poll `/readyz` to know when to send
 `src/config.js` centralises env parsing + simple validation. It supplies defaults for dev only and will throw in production if required values are missing (fast fail instead of half‑broken runtime).
 
 Key exported values: `PORT`, `DATABASE_URL`, `JWT_SECRET`, `PAYSTACK_SECRET_KEY`, `PUBLIC_APP_URL`, `CORS_ORIGINS`.
+
+### Backblaze B2 Storage
+- Profile picture uploads now go to Backblaze B2 using the S3-compatible API (Supabase storage is no longer used and previously uploaded images are not migrated).
+- Required env vars: `BACKBLAZE_KEY_ID`, `BACKBLAZE_APPLICATION_KEY`, `BACKBLAZE_REGION`, `BACKBLAZE_BUCKET_NAME` (bucket `tikcashprofilepictures` is used in production).
+- Optional overrides:
+   - `BACKBLAZE_ENDPOINT`: custom S3 endpoint URL if you prefer a vanity domain or region alias.
+   - `BACKBLAZE_PUBLIC_BASE_URL`: if you serve the bucket via CDN or custom domain, set this so returned profile URLs use that host.
+- Files are stored under `<userId>/<creator_X_timestamp.ext>` allowing per-user cleanup.
+- Deleting a profile picture removes the object from Backblaze and nulls the DB column.
 
 ### Minimal Mental Model
 - Put secrets in environment variables.

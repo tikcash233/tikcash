@@ -20,8 +20,8 @@ import { txEvents, emitTransactionEvent } from './events.js';
 import { createSupportTicket, listSupportTickets, getSupportTicketById, respondToSupportTicket } from './models/support.js';
 import crypto from 'node:crypto';
 import http from 'http';
-import { createClient } from '@supabase/supabase-js';
 import multer from 'multer';
+import { uploadObject, deleteObject as deleteStorageObject, extractKeyFromUrl, getPublicUrlForKey } from './storage/backblaze.js';
 dotenv.config();
 
 // Ensure JWT_SECRET is available. Use a clear dev fallback but fail-fast in production.
@@ -51,11 +51,6 @@ const upload = multer({
     cb(null, true);
   }
 });
-
-// Supabase client (used for profile pictures)
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Activity tracking for smart resource management
 let lastActivityTime = Date.now();
@@ -1013,12 +1008,14 @@ app.post('/api/creators/remove-profile-picture', authRequired, async (req, res, 
       await pool.query('UPDATE creators SET profile_image = NULL WHERE created_by = (SELECT email FROM users WHERE id = $1)', [userId]);
       return res.json({ ok: true });
     }
-    // Extract path from public URL
-    const matches = imageUrl.match(/profile-pictures\/(.+)$/);
-    const filePath = matches ? matches[1] : null;
-    if (filePath) {
-      const { error } = await supabase.storage.from('profile-pictures').remove([filePath]);
-      if (error) return res.status(500).json({ error: error.message });
+    const storageKey = extractKeyFromUrl(imageUrl);
+    if (storageKey) {
+      try {
+        await deleteStorageObject(storageKey);
+      } catch (err) {
+        console.error('[storage] Failed to delete profile image:', err);
+        return res.status(500).json({ error: 'Failed to delete stored profile image. Please try again.' });
+      }
     }
     await pool.query('UPDATE creators SET profile_image = NULL WHERE created_by = (SELECT email FROM users WHERE id = $1)', [userId]);
     res.json({ ok: true });
@@ -1340,25 +1337,26 @@ app.post('/api/creators/upload-profile-picture', authRequired, upload.single('pr
     const fileName = `creator_${userId}_${Date.now()}.${fileExt}`;
     // Store files under a per-user path to avoid collisions and allow easy cleanup
     const filePath = `${userId}/${fileName}`;
-    const { data, error } = await supabase.storage
-      .from('profile-pictures')
-      .upload(filePath, req.file.buffer, {
-        cacheControl: '3600',
-        upsert: true,
-        contentType: req.file.mimetype
+    let publicUrl;
+    try {
+      publicUrl = await uploadObject({
+        key: filePath,
+        body: req.file.buffer,
+        contentType: req.file.mimetype,
+        cacheSeconds: 3600,
       });
-    if (error) return res.status(500).json({ error: error.message });
+    } catch (err) {
+      console.error('[storage] Failed to upload profile image:', err);
+      return res.status(500).json({ error: 'Failed to upload profile picture. Please try again.' });
+    }
+    if (!publicUrl) {
+      const fallbackUrl = getPublicUrlForKey(filePath);
+      if (!fallbackUrl) return res.status(500).json({ error: 'File uploaded but no public URL available.' });
+      publicUrl = fallbackUrl;
+    }
 
-    // Try to get a public URL first (works for public buckets)
-    const { data: publicUrlData, error: publicUrlErr } = await supabase.storage
-      .from('profile-pictures')
-      .getPublicUrl(filePath);
-      const publicUrl = publicUrlData?.publicUrl || publicUrlData?.publicURL || publicUrlData?.public_url;
-      if (!publicUrl) return res.status(500).json({ error: 'Failed to get public URL.' });
-
-    // Update creator profile_image
-      await pool.query('UPDATE creators SET profile_image = $1 WHERE created_by = (SELECT email FROM users WHERE id = $2)', [publicUrl, userId]);
-      res.json({ url: publicUrl });
+    await pool.query('UPDATE creators SET profile_image = $1 WHERE created_by = (SELECT email FROM users WHERE id = $2)', [publicUrl, userId]);
+    res.json({ url: publicUrl });
   } catch (e) { next(e); }
 });
 
