@@ -715,14 +715,16 @@ export default function CreatorDashboard() {
   const stats = [
     {
       title: "Total Earnings",
-      value: `GH₵ ${(creator.total_earnings || 0).toFixed(2)}`,
-  icon: TrendingUp,
+      value: Number(creator.total_earnings || 0),
+      variant: "currency",
+      icon: TrendingUp,
       color: "text-blue-600",
       bgColor: "bg-blue-50"
     },
     {
       title: "Available Balance",
-      value: `GH₵ ${(creator.available_balance || 0).toFixed(2)}`,
+      value: Number(creator.available_balance || 0),
+      variant: "currency",
       icon: CediIcon,
       color: "text-green-600",
       bgColor: "bg-green-50"
@@ -730,6 +732,7 @@ export default function CreatorDashboard() {
     {
       title: "Total Tips",
       value: transactions.filter(t => t.transaction_type === 'tip').length,
+      variant: "count",
       icon: Gift,
       color: "text-purple-600",
       bgColor: "bg-purple-50"
@@ -750,11 +753,23 @@ export default function CreatorDashboard() {
         }
         return namedSet.size + anonymousCount;
       })(),
-      icon: Users,
-      color: "text-orange-600",
-      bgColor: "bg-orange-50"
-    }
-  ];
+        variant: "count",
+        icon: Users,
+        color: "text-orange-600",
+        bgColor: "bg-orange-50"
+      }
+    ];
+
+    const formatStatCurrency = (value) => {
+      return Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    };
+
+    const formatStatCount = (value) => {
+      return Number(value || 0).toLocaleString();
+    };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 overflow-x-hidden">
@@ -939,13 +954,25 @@ export default function CreatorDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
           {stats.map((stat, index) => {
             const pulse = balancePulse && (stat.title === 'Total Earnings' || stat.title === 'Available Balance');
+            const valueMarkup = stat.variant === 'currency' ? (
+              <div className={`flex flex-wrap items-baseline gap-1 text-gray-900 leading-tight ${pulse ? 'animate-pulse' : ''}`}>
+                <span className="text-sm font-semibold whitespace-nowrap">GH₵</span>
+                <span className="text-[1.65rem] sm:text-2xl font-bold tracking-tight">
+                  {formatStatCurrency(stat.value)}
+                </span>
+              </div>
+            ) : (
+              <span className={`text-[1.65rem] sm:text-2xl font-bold text-gray-900 leading-tight ${pulse ? 'animate-pulse' : ''}`}>
+                {formatStatCount(stat.value)}
+              </span>
+            );
             return (
               <React.Fragment key={index}>
                 {stat.title === 'Total Earnings' && (
-                  <div className="mb-2 flex justify-center">
+                  <div className="mb-2 flex justify-center col-span-full">
                       <span className="inline-flex items-center text-xs text-amber-700 bg-amber-100/40 rounded px-3 py-1">
                         <AlertTriangle className="w-6 h-6 mr-2 flex-shrink-0" />
                           <span>Amounts you see already have platform fees taken out (20%).
@@ -957,8 +984,8 @@ export default function CreatorDashboard() {
                     </div>
                 )}
                 <Card className={`border-none shadow-lg transition-all duration-300 ${pulse ? 'ring-2 ring-emerald-400 scale-[1.015]' : 'hover:shadow-xl'}`}>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
+                  <CardContent className="p-4 sm:p-6 min-h-[120px]">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
                       <div>
                         <p className="text-sm font-medium text-gray-600 mb-1 flex items-center gap-2">
                           {stat.title}
@@ -966,7 +993,7 @@ export default function CreatorDashboard() {
                             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                           )}
                         </p>
-                        <p className={`text-2xl font-bold text-gray-900 ${pulse ? 'animate-pulse' : ''}`}>{stat.value}</p>
+                        {valueMarkup}
                       </div>
                       <div className={`p-3 rounded-xl ${stat.bgColor} ${pulse ? 'ring-2 ring-white/50' : ''}`}>
                         <stat.icon className={`w-6 h-6 ${stat.color}`} />

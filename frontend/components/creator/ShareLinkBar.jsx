@@ -93,11 +93,6 @@ export default function ShareLinkBar({ creator }) {
     } catch {}
   };
 
-  const previewLink = () => {
-    if (typeof window === "undefined") return;
-    window.open(shareUrl, "_blank", "noopener,noreferrer");
-  };
-
   const downloadQr = () => {
     if (!qrDataUrl) return;
     const link = document.createElement("a");
@@ -145,7 +140,6 @@ export default function ShareLinkBar({ creator }) {
                 <Button type="button" onClick={downloadQr} disabled={!qrDataUrl || qrLoading}>
                   <Download className="w-4 h-4 mr-2" /> {qrLoading ? "Preparing..." : "Download QR"}
                 </Button>
-                <Button type="button" variant="ghost" className="text-sm" onClick={previewLink}>Preview link</Button>
               </div>
               {qrError && (
                 <p className="text-xs text-red-600 mt-2">{qrError}</p>
