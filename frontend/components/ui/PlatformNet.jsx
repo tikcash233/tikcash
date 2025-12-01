@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Button } from './button';
+import { apiUrl } from '@/src/config';
 
 export default function PlatformNet({ open, onClose, inline = false }) {
   const [from, setFrom] = useState('');
@@ -33,7 +34,8 @@ export default function PlatformNet({ open, onClose, inline = false }) {
       if (toVal) qp.set('date_to', toVal);
       qp.set('period', periodVal);
       const token = localStorage.getItem('tikcash_token') || '';
-      const res = await fetch(`/api/admin/platform-net?${qp.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
+      const endpoint = apiUrl(`/api/admin/platform-net?${qp.toString()}`);
+      const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
       setData(json.data || []);
@@ -56,7 +58,7 @@ export default function PlatformNet({ open, onClose, inline = false }) {
     qp.set('format', 'csv');
     qp.set('period', period);
     const token = localStorage.getItem('tikcash_token') || '';
-    const url = `/api/admin/platform-net?${qp.toString()}`;
+    const url = apiUrl(`/api/admin/platform-net?${qp.toString()}`);
     // Use fetch to include auth header and download
     const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' });
     if (!resp.ok) return alert('Export failed');
