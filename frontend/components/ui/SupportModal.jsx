@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { Input } from './input.jsx';
 import { Button } from './button.jsx';
+import { apiUrl } from '@/src/config';
 
 export default function SupportModal({ open, onClose }) {
   const [name, setName] = useState('');
@@ -29,7 +30,7 @@ export default function SupportModal({ open, onClose }) {
     if (!name || !email || !message) return setError('Name, email and message are required');
     setLoading(true);
     try {
-      const res = await fetch('/api/support', {
+      const res = await fetch(apiUrl('/api/support'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, phone, message }),

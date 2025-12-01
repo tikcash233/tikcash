@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import PenIcon from "../components/ui/PenIcon";
 import ImageModal from "../components/ui/ImageModal";
+import { apiUrl } from '@/src/config';
 import { ConfirmDialog } from "../components/ui/confirm.jsx";
 import { useNavigate } from "react-router-dom";
 import { Creator, Transaction, User, RealtimeBus } from "@/entities/all";
@@ -41,7 +42,7 @@ export default function CreatorDashboard() {
     try {
       const formData = new FormData();
       formData.append('profile_picture', file);
-      const res = await fetch('/api/creators/upload-profile-picture', {
+      const res = await fetch(apiUrl('/api/creators/upload-profile-picture'), {
         method: 'POST',
   headers: { Authorization: `Bearer ${localStorage.getItem('tikcash_token')}` },
         body: formData,
@@ -70,7 +71,7 @@ export default function CreatorDashboard() {
   };
   const confirmRemovePhoto = async () => {
     try {
-      const res = await fetch('/api/creators/remove-profile-picture', {
+      const res = await fetch(apiUrl('/api/creators/remove-profile-picture'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('tikcash_token')}` },
       });

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { User } from "@/entities/all";
 import { useToast } from "@/components/ui/toast.jsx";
+import { apiUrl } from '@/src/config';
 
 export default function CreatorProfile({ onCreateProfile }) {
 	const [me, setMe] = useState(null);
@@ -81,7 +82,7 @@ export default function CreatorProfile({ onCreateProfile }) {
 			if (profileImage) {
 				const formData = new FormData();
 				formData.append("profile_picture", profileImage);
-				const res = await fetch("/api/creators/upload-profile-picture", {
+				const res = await fetch(apiUrl("/api/creators/upload-profile-picture"), {
 					method: "POST",
 					headers: {
             				Authorization: `Bearer ${localStorage.getItem("tikcash_token")}`,

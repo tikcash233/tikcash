@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, NavLink } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
+import { apiUrl } from '@/src/config';
 // Removed broken react-day-picker import
 
 function formatDate(d) { return new Date(d).toLocaleString(); }
@@ -32,7 +33,7 @@ export default function AdminApproved() {
   // creator_search removed
       if (sort) params.sort = sort;
   const token = localStorage.getItem('tikcash_token') || '';
-  const res = await axios.get('/api/admin/approved-withdrawals', { params, headers: { Authorization: `Bearer ${token}` }, withCredentials: true });
+  const res = await axios.get(apiUrl('/api/admin/approved-withdrawals'), { params, headers: { Authorization: `Bearer ${token}` }, withCredentials: true });
       // Ensure UI shows newest approved first (fallback to created_date when approved_at missing)
       const list = Array.isArray(res.data.withdrawals) ? res.data.withdrawals.slice() : [];
       list.sort((a, b) => {
@@ -61,7 +62,7 @@ export default function AdminApproved() {
       // Use fetch so we can include Authorization header (window.open can't set headers)
       try {
     const token = localStorage.getItem('tikcash_token') || '';
-  const exportUrl = `/api/admin/approved-withdrawals/export?${qp}`;
+  const exportUrl = apiUrl(`/api/admin/approved-withdrawals/export?${qp}`);
   const resp = await fetch(exportUrl, {
           headers: { Authorization: `Bearer ${token}` },
           credentials: 'include',

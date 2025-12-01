@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { apiUrl } from '@/src/config';
 
 export default function TipModal({ creator, onSendTip, onClose }) {
 	const [amount, setAmount] = useState("");
@@ -28,7 +29,7 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 			const attemptInitiate = async () => {
 				const controller = new AbortController();
 				const timeout = setTimeout(() => controller.abort(), 15000); // 15s safeguard
-				const res = await fetch('/api/payments/paystack/initiate', {
+				const res = await fetch(apiUrl('/api/payments/paystack/initiate'), {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({

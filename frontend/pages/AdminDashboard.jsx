@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { AlertTriangle } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { apiUrl } from '@/src/config';
 // Use relative API paths for Vite proxy
 
 export default function AdminDashboard() {
@@ -27,7 +28,7 @@ export default function AdminDashboard() {
   async function fetchWithdrawals() {
     setLoading(true);
     try {
-      const res = await axios.get('/api/admin/pending-withdrawals', {
+      const res = await axios.get(apiUrl('/api/admin/pending-withdrawals'), {
         params: { page },
         headers: { Authorization: `Bearer ${getToken()}` },
         withCredentials: true,
@@ -46,7 +47,7 @@ export default function AdminDashboard() {
   async function approveWithdrawal(id) {
     setApproving((prev) => ({ ...prev, [id]: true }));
     try {
-      await axios.post('/api/admin/approve-withdrawal', { withdrawalId: id }, {
+      await axios.post(apiUrl('/api/admin/approve-withdrawal'), { withdrawalId: id }, {
         headers: { Authorization: `Bearer ${getToken()}` },
         withCredentials: true,
       });
@@ -61,7 +62,7 @@ export default function AdminDashboard() {
   async function declineWithdrawal(id) {
     setDeclining((prev) => ({ ...prev, [id]: true }));
     try {
-      await axios.post('/api/admin/decline-withdrawal', { withdrawalId: id }, {
+      await axios.post(apiUrl('/api/admin/decline-withdrawal'), { withdrawalId: id }, {
         headers: { Authorization: `Bearer ${getToken()}` },
         withCredentials: true,
       });

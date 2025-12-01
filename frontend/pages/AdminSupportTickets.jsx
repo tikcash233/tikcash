@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BadgeCheck, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm.jsx';
+import { apiUrl } from '@/src/config';
 
 export default function AdminSupportTickets() {
   const [tickets, setTickets] = useState([]);
@@ -27,17 +28,18 @@ export default function AdminSupportTickets() {
   async function fetchTickets() {
     setLoading(true); setError('');
     try {
-      const resp = await fetch('/api/admin/support-tickets', { headers: { Authorization: `Bearer ${localStorage.getItem('tikcash_token') || ''}` } });
+      const resp = await fetch(apiUrl('/api/admin/support-tickets'), { headers: { Authorization: `Bearer ${localStorage.getItem('tikcash_token') || ''}` } });
       if (resp.status === 401) { setError('Unauthorized'); setTickets([]); return; }
       const data = await resp.json();
+      if (data.error) { setError(data.error); setTickets([]); return; }
       setTickets(data.tickets || []);
-    } catch (err) { setError('Failed to load tickets'); }
+    } catch (err) { setError(`Failed to load tickets: ${err.message}`); }
     setLoading(false);
   }
 
   async function markResolved(id) {
     try {
-      const resp = await fetch(`/api/admin/support-tickets/${id}`, {
+      const resp = await fetch(apiUrl(`/api/admin/support-tickets/${id}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('tikcash_token') || ''}` },
         body: JSON.stringify({ status: 'resolved' }),

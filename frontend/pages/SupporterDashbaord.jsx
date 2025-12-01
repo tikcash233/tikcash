@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Creator, Transaction, User } from "@/entities/all";
+import { apiUrl } from '@/src/config';
 import { Input } from "@/components/ui/input";
 import { Search, ArrowUp, UserPlus, Eye } from "lucide-react";
 

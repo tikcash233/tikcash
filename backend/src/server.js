@@ -69,6 +69,24 @@ app.disable('x-powered-by');
 app.use(helmet());
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
+
+// CORS - must be before routes
+const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // allow same-origin/no origin
+    
+    // In development, allow all localhost origins
+    if (process.env.NODE_ENV !== 'production' && origin?.includes('localhost')) {
+      return cb(null, true);
+    }
+    
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
 // Admin route: Get all pending withdrawal requests
 app.get('/api/admin/pending-withdrawals', authRequired, adminRequired, async (req, res) => {
   try {
@@ -583,24 +601,7 @@ app.use((req, res, next) => {
   }
 });
 
-// CORS
-// Comma-separated allowlist for frontend URLs
-const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // allow same-origin/no origin
-    
-    // In development, allow all localhost origins
-    if (process.env.NODE_ENV !== 'production' && origin?.includes('localhost')) {
-      return cb(null, true);
-    }
-    
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-}));
-console.log('[CORS] Allowed origins:', allowedOrigins);
+// CORS configuration moved above routes (before line 73)
 // Activity tracking middleware for important endpoints
 app.use((req, res, next) => {
   // Track activity for user-facing endpoints (exclude health checks, static assets)

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, NavLink } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
+import { apiUrl } from '@/src/config';
 
 function formatDate(d) { return new Date(d).toLocaleString(); }
 
@@ -31,7 +32,7 @@ export default function AdminDeclined() {
   // creator_search removed
       if (sort) params.sort = sort;
       const token = localStorage.getItem('tikcash_token') || '';
-      const res = await axios.get('/api/admin/declined-withdrawals', { params, headers: { Authorization: `Bearer ${token}` }, withCredentials: true });
+      const res = await axios.get(apiUrl('/api/admin/declined-withdrawals'), { params, headers: { Authorization: `Bearer ${token}` }, withCredentials: true });
       const list = Array.isArray(res.data.withdrawals) ? res.data.withdrawals.slice() : [];
       list.sort((a, b) => {
         const ta = Date.parse(a.declined_at || a.created_date || 0) || 0;
@@ -57,7 +58,7 @@ export default function AdminDeclined() {
     const qp = new URLSearchParams(params).toString();
     try {
       const token = localStorage.getItem('tikcash_token') || '';
-      const exportUrl = `/api/admin/declined-withdrawals/export?${qp}`;
+      const exportUrl = apiUrl(`/api/admin/declined-withdrawals/export?${qp}`);
       const resp = await fetch(exportUrl, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' });
       if (!resp.ok) return console.error('Export failed', resp.status);
       const blob = await resp.blob();

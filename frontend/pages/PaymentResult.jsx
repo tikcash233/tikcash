@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { apiUrl } from '@/src/config';
 
 export default function PaymentResult() {
   const [params] = useSearchParams();
@@ -52,7 +53,7 @@ export default function PaymentResult() {
     } catch {}
     const poll = async () => {
       try {
-        const r = await fetch(`/api/payments/paystack/status/${encodeURIComponent(ref)}`);
+        const r = await fetch(apiUrl(`/api/payments/paystack/status/${encodeURIComponent(ref)}`));
         if (!r.ok) throw new Error('Status error');
         const j = await r.json();
         if (cancelled) return;
@@ -65,7 +66,7 @@ export default function PaymentResult() {
             verifyAttempts += 1;
             try {
               await new Promise(r => setTimeout(r, 1200));
-              const vv = await fetch(`/api/payments/paystack/verify/${encodeURIComponent(ref)}`);
+              const vv = await fetch(apiUrl(`/api/payments/paystack/verify/${encodeURIComponent(ref)}`));
               const vj = await vv.json().catch(() => ({}));
               if (vj && vj.status) {
                 setStatus(vj.status);
