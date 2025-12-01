@@ -600,7 +600,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-
+console.log('[CORS] Allowed origins:', allowedOrigins);
 // Activity tracking middleware for important endpoints
 app.use((req, res, next) => {
   // Track activity for user-facing endpoints (exclude health checks, static assets)
