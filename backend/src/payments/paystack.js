@@ -35,6 +35,12 @@ export async function initializePaystackTransaction({ amountGHS, email, referenc
     err.status = 502;
     throw err;
   }
+  // Validate that Paystack returned the required data
+  if (!json.data || !json.data.authorization_url) {
+    const err = new Error('Paystack response missing authorization_url');
+    err.status = 502;
+    throw err;
+  }
   return json.data; // contains authorization_url, reference, access_code
 }
 

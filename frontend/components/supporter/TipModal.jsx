@@ -44,9 +44,9 @@ export default function TipModal({ creator, onSendTip, onClose }) {
 				clearTimeout(timeout);
 				const raw = await res.text();
 				let data = {};
-				if (raw) { try { data = JSON.parse(raw); } catch { throw new Error('Server sent invalid JSON'); } }
-				if (!res.ok) throw new Error(data.error || `Failed (status ${res.status})`);
-				if (!data.authorization_url) throw new Error('Missing authorization_url in response');
+				if (raw) { try { data = JSON.parse(raw); } catch { throw new Error('Server error. Please try again.'); } }
+				if (!res.ok) throw new Error(data.error || `Payment initialization failed. Please try again.`);
+				if (!data.authorization_url) throw new Error('Payment system did not respond properly. Please try again.');
 				return data.authorization_url;
 			};
 			let attempts = 0;

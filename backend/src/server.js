@@ -1134,10 +1134,15 @@ app.post('/api/payments/paystack/initiate', async (req, res, next) => {
       callbackUrl
     });
 
-    // Persist authorization_url for future idempotent retries returning early
-    if (initData?.authorization_url) {
-      attachAuthorizationUrl(pendingTx.id, initData.authorization_url).catch(()=>{});
+    // Validate that Paystack returned an authorization URL
+    if (!initData?.authorization_url) {
+      const err = new Error('Paystack did not return a payment URL. Please try again.');
+      err.status = 502;
+      throw err;
     }
+
+    // Persist authorization_url for future idempotent retries returning early
+    attachAuthorizationUrl(pendingTx.id, initData.authorization_url).catch(()=>{});
 
     res.json({ authorization_url: initData.authorization_url, reference });
   } catch (e) { next(e); }
