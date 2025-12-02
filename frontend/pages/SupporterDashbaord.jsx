@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Creator, Transaction, User } from "@/entities/all";
 import { apiUrl } from '@/src/config';
@@ -25,6 +25,7 @@ export default function SupporterDashboard() {
   const [user, setUser] = useState(null);
   const [showingSearchResults, setShowingSearchResults] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const resultsRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -132,6 +133,16 @@ export default function SupporterDashboard() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Auto-scroll results into view on mobile so users see them immediately after searching
+  useEffect(() => {
+    if (!showingSearchResults || isSearching || !resultsRef.current || typeof window === 'undefined') return;
+    if (searchResults.length === 0) return;
+    const isMobile = window.innerWidth <= 768;
+    if (!isMobile) return;
+    const top = resultsRef.current.getBoundingClientRect().top + window.scrollY - 16;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }, [showingSearchResults, isSearching, searchResults.length]);
+
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
   };
@@ -228,7 +239,7 @@ export default function SupporterDashboard() {
 
         {/* Search Results */}
         {showingSearchResults && (
-          <div className="mb-8">
+          <div ref={resultsRef} className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-gray-900">
                 Search Results ({searchResults.length})
