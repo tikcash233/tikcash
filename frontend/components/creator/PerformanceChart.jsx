@@ -303,12 +303,12 @@ export default function PerformanceChart({ transactions = [] }) {
 								No performance data in this range yet.
 							</div>
 						) : (
-							<div className="relative bg-white rounded-xl p-2 sm:p-4 border border-gray-100 shadow-sm -mx-4 sm:mx-0 overflow-x-auto">
-								<div className="min-w-[560px] sm:min-w-0 w-full">
+								<div className="relative bg-white rounded-xl p-2 sm:p-4 border border-gray-100 shadow-sm -mx-4 sm:mx-0 overflow-x-auto touch-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+									<div className="min-w-[560px] sm:min-w-0 w-full">
 									<svg
 										viewBox={`0 0 ${width} ${height}`}
 										className="w-full h-[320px] sm:h-[360px] md:h-[400px] lg:h-[440px]"
-										style={{ touchAction: 'none' }}
+										style={{ touchAction: 'manipulation' }}
 										onMouseMove={onMouseMove}
 										onMouseLeave={onMouseLeave}
 										onTouchStart={onTouchStart}
