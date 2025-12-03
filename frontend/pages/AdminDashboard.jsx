@@ -88,10 +88,26 @@ export default function AdminDashboard() {
       </div>
       <div className="mb-6 text-center">
         <h1 className="text-3xl font-bold mb-4">Admin</h1>
-        <div className="inline-flex bg-white shadow-sm rounded-xl overflow-hidden mx-auto">
-          <NavLink to="/admin" end className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Pending</NavLink>
-          <NavLink to="/admin/approved" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Approved</NavLink>
-          <NavLink to="/admin/declined" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Declined</NavLink>
+        <div className="bg-white shadow-sm rounded-xl p-2 mx-auto max-w-2xl">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <NavLink
+              to="/admin"
+              end
+              className={({ isActive }) => `px-3 py-2 text-sm font-medium text-center rounded-lg transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+            >Pending</NavLink>
+            <NavLink
+              to="/admin/approved"
+              className={({ isActive }) => `px-3 py-2 text-sm font-medium text-center rounded-lg transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+            >Approved</NavLink>
+            <NavLink
+              to="/admin/declined"
+              className={({ isActive }) => `px-3 py-2 text-sm font-medium text-center rounded-lg transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+            >Declined</NavLink>
+            <NavLink
+              to="/admin/creators"
+              className={({ isActive }) => `px-3 py-2 text-sm font-medium text-center rounded-lg transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+            >Creators</NavLink>
+          </div>
         </div>
       </div>
       <h2 className="text-xl font-semibold mb-4">Pending Withdrawals</h2>

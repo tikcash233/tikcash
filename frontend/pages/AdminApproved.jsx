@@ -103,10 +103,13 @@ export default function AdminApproved() {
       </div>
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold mb-4">Admin Approved Withdrawals</h1>
-        <div className="inline-flex bg-white shadow-sm rounded-xl overflow-hidden">
-          <NavLink to="/admin" end className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Pending</NavLink>
-          <NavLink to="/admin/approved" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Approved</NavLink>
-          <NavLink to="/admin/declined" className={({ isActive }) => `px-4 py-2 text-sm font-medium w-28 text-center ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>Declined</NavLink>
+        <div className="bg-white shadow-sm rounded-xl p-2 max-w-2xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <NavLink to="/admin" end className={({ isActive }) => `px-3 py-2 text-sm font-medium text-center rounded-lg transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>Pending</NavLink>
+            <NavLink to="/admin/approved" className={({ isActive }) => `px-3 py-2 text-sm font-medium text-center rounded-lg transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>Approved</NavLink>
+            <NavLink to="/admin/declined" className={({ isActive }) => `px-3 py-2 text-sm font-medium text-center rounded-lg transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>Declined</NavLink>
+            <NavLink to="/admin/creators" className={({ isActive }) => `px-3 py-2 text-sm font-medium text-center rounded-lg transition ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>Creators</NavLink>
+          </div>
         </div>
         <div className="mt-3 flex justify-end gap-3">
           <NavLink to="/admin/platform-earnings" className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md hover:brightness-105">Platform earnings</NavLink>
