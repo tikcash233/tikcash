@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Activity, BadgeCheck, CalendarDays, RefreshCw, Search, Users2 } from 'lucide-react';
+import { BadgeCheck, RefreshCw, Search, Users2 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { apiUrl } from '@/src/config';
 
@@ -17,7 +17,6 @@ const CATEGORY_OPTIONS = [
   { value: 'other', label: 'Other' },
 ];
 
-const ACTIVE_WINDOW_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 const currencyFormatter = new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS', minimumFractionDigits: 2 });
 const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, notation: 'compact' });
 
@@ -31,6 +30,19 @@ function formatDate(dateValue) {
   const dt = new Date(dateValue);
   if (Number.isNaN(dt.getTime())) return '—';
   return dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatDateTime(dateValue) {
+  if (!dateValue) return '—';
+  const dt = new Date(dateValue);
+  if (Number.isNaN(dt.getTime())) return '—';
+  return dt.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function formatRelative(dateValue) {
@@ -90,17 +102,14 @@ export default function AdminCreators() {
   useEffect(() => { fetchCreators(); }, [fetchCreators]);
 
   const stats = useMemo(() => {
-    if (!creators.length) return { total: 0, active: 0, earnings: 0, balance: 0 };
-    let active = 0;
+    if (!creators.length) return { total: 0, earnings: 0, balance: 0 };
     let earnings = 0;
     let balance = 0;
     creators.forEach((creator) => {
-      const lastActive = new Date(creator.updated_at || creator.created_at || 0).getTime();
-      if (!Number.isNaN(lastActive) && Date.now() - lastActive <= ACTIVE_WINDOW_MS) active += 1;
       earnings += Number(creator.total_earnings || 0);
       balance += Number(creator.available_balance || 0);
     });
-    return { total: creators.length, active, earnings, balance };
+    return { total: creators.length, earnings, balance };
   }, [creators]);
 
   const visibleCreators = useMemo(() => {
@@ -116,16 +125,16 @@ export default function AdminCreators() {
     });
 
     next.sort((a, b) => {
-      if (sort === 'active') {
-        const aLast = new Date(a.updated_at || a.created_at || 0).getTime();
-        const bLast = new Date(b.updated_at || b.created_at || 0).getTime();
-        return (bLast || 0) - (aLast || 0);
-      }
       if (sort === 'earnings') {
         return Number(b.total_earnings || 0) - Number(a.total_earnings || 0);
       }
       if (sort === 'balance') {
         return Number(b.available_balance || 0) - Number(a.available_balance || 0);
+      }
+      if (sort === 'last_tip') {
+        const aTip = new Date(a.last_tip_at || 0).getTime();
+        const bTip = new Date(b.last_tip_at || 0).getTime();
+        return (bTip || 0) - (aTip || 0);
       }
       // latest
       const aCreated = new Date(a.created_at || 0).getTime();
@@ -161,11 +170,6 @@ export default function AdminCreators() {
           <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500">Creators <Users2 className="w-4 h-4 text-blue-500" /></div>
           <div className="mt-2 text-3xl font-semibold text-gray-900">{stats.total}</div>
           <div className="text-sm text-gray-500">on the platform</div>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500">Active (7d) <Activity className="w-4 h-4 text-emerald-500" /></div>
-          <div className="mt-2 text-3xl font-semibold text-gray-900">{stats.active}</div>
-          <div className="text-sm text-gray-500">recently updated</div>
         </div>
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500">Total earnings</div>
@@ -214,7 +218,7 @@ export default function AdminCreators() {
               className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="latest">Recently joined</option>
-              <option value="active">Last active</option>
+              <option value="last_tip">Recent tips</option>
               <option value="earnings">Top earners</option>
               <option value="balance">Highest balance</option>
             </select>
@@ -243,12 +247,9 @@ export default function AdminCreators() {
         <div className="grid gap-5 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {visibleCreators.map((creator) => {
             const lastActive = creator.updated_at || creator.created_at;
-            const isActive = (() => {
-              const ts = new Date(lastActive || 0).getTime();
-              if (Number.isNaN(ts)) return false;
-              return Date.now() - ts <= ACTIVE_WINDOW_MS;
-            })();
-            const badgeClasses = isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-gray-50 text-gray-500 border border-gray-100';
+            const lastTipAmount = typeof creator.last_tip_amount === 'number'
+              ? creator.last_tip_amount
+              : Number(creator.last_tip_amount || 0);
             return (
               <article key={creator.id || creator.tiktok_username} className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex flex-col gap-4">
                 <div className="flex items-center gap-4">
@@ -286,7 +287,6 @@ export default function AdminCreators() {
                       ) : null}
                     </div>
                   </div>
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${badgeClasses}`}>{isActive ? 'Active' : 'Idle'}</span>
                 </div>
 
                 {creator.bio ? (
@@ -312,19 +312,20 @@ export default function AdminCreators() {
                     <p className="text-xs uppercase tracking-wider text-gray-500">Joined</p>
                     <p className="text-sm font-semibold text-gray-900">{formatDate(creator.created_at)}</p>
                   </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-                  {creator.phone_number ? (
-                    <span className="px-3 py-1 rounded-full bg-gray-100">{creator.phone_number}</span>
-                  ) : null}
-                  {creator.preferred_payment_method ? (
-                    <span className="px-3 py-1 rounded-full bg-gray-100 capitalize">{creator.preferred_payment_method}</span>
-                  ) : null}
-                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gray-100">
-                    <CalendarDays className="w-3 h-3" />
-                    Joined {formatDate(creator.created_at)}
-                  </span>
+                  <div className="p-3 rounded-xl bg-gray-50 col-span-2">
+                    <p className="text-xs uppercase tracking-wider text-gray-500">Last tip received</p>
+                    {creator.last_tip_at ? (
+                      <>
+                        <p className="text-lg font-semibold text-gray-900">{formatCurrency(lastTipAmount)}</p>
+                        <p className="text-sm text-gray-700">{formatDateTime(creator.last_tip_at)}</p>
+                        {creator.last_tip_supporter ? (
+                          <p className="text-xs text-gray-500">from {creator.last_tip_supporter}</p>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">No tips yet.</p>
+                    )}
+                  </div>
                 </div>
               </article>
             );

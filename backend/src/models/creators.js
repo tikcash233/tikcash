@@ -3,29 +3,48 @@ import { parseNumericFields } from '../utils.js';
 
 export async function listCreators({ sort = '-total_earnings', category, search, created_by } = {}) {
   const sorts = new Map([
-    ['-total_earnings', 'total_earnings DESC'],
-    ['total_earnings', 'total_earnings ASC'],
-    ['-created_at', 'created_at DESC'],
+    ['-total_earnings', 'c.total_earnings DESC'],
+    ['total_earnings', 'c.total_earnings ASC'],
+    ['-created_at', 'c.created_at DESC'],
   ]);
-  const orderBy = sorts.get(sort) || 'total_earnings DESC';
+  const orderBy = sorts.get(sort) || 'c.total_earnings DESC';
   const clauses = [];
   const params = [];
   if (category && category !== 'all') {
     params.push(category);
-    clauses.push(`category = $${params.length}`);
+    clauses.push(`c.category = $${params.length}`);
   }
   if (search) {
     params.push(`%${search.toLowerCase()}%`);
-    clauses.push(`(lower(display_name) LIKE $${params.length} OR lower(tiktok_username) LIKE $${params.length} OR lower(coalesce(bio,'')) LIKE $${params.length})`);
+    clauses.push(`(lower(c.display_name) LIKE $${params.length} OR lower(c.tiktok_username) LIKE $${params.length} OR lower(coalesce(c.bio,'')) LIKE $${params.length})`);
   }
   if (created_by) {
     params.push(created_by);
-    clauses.push(`created_by = $${params.length}`);
+    clauses.push(`c.created_by = $${params.length}`);
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  const sql = `SELECT * FROM creators ${where} ORDER BY ${orderBy} LIMIT 200`;
+  const sql = `
+    SELECT 
+      c.*,
+      lt.amount AS last_tip_amount,
+      lt.created_date AS last_tip_at,
+      lt.supporter_name AS last_tip_supporter,
+      lt.message AS last_tip_message
+    FROM creators c
+    LEFT JOIN LATERAL (
+      SELECT t.amount, t.created_date, t.supporter_name, t.message
+      FROM transactions t
+      WHERE t.creator_id = c.id 
+        AND t.transaction_type = 'tip'
+        AND t.status = 'completed'
+      ORDER BY t.created_date DESC
+      LIMIT 1
+    ) AS lt ON TRUE
+    ${where}
+    ORDER BY ${orderBy}
+    LIMIT 200`;
   const res = await query(sql, params);
-  return res.rows.map(r => parseNumericFields(r, ['total_earnings','available_balance']));
+  return res.rows.map(r => parseNumericFields(r, ['total_earnings','available_balance','last_tip_amount']));
 }
 
 export async function createCreator(data) {
