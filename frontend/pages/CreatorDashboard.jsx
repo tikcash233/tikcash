@@ -673,7 +673,7 @@ export default function CreatorDashboard() {
     }
   };
 
-  const handleWithdrawal = async ({ amount, momo }) => {
+  const handleWithdrawal = async ({ amount, momo, pin }) => {
     try {
       if (isSubmittingWithdraw) return;
       setIsSubmittingWithdraw(true);
@@ -683,13 +683,18 @@ export default function CreatorDashboard() {
         transaction_type: 'withdrawal',
         status: 'pending',
         momo_number: momo,
+        pin,
       });
       setShowWithdrawModal(false);
       await loadDashboardData();
       toastSuccess(`Withdrawal of GH₵ ${amount.toFixed(2)} requested to ${momo}.`);
     } catch (error) {
       console.error('Error processing withdrawal:', error);
-      toastError('Failed to request withdrawal. Please try again.');
+      if (error && error.body && error.body.error) {
+        toastError(error.body.error);
+      } else {
+        toastError('Failed to request withdrawal. Please try again.');
+      }
     } finally {
       setIsSubmittingWithdraw(false);
     }

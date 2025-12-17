@@ -5,6 +5,7 @@ export function createPageUrl(name) {
     SupporterDashboard: "/support",
   // Browsing is consolidated on the supporter page; keep alias for any stray references
   BrowseCreators: "/support",
+  ProfileSettings: "/settings",
   };
   return map[name] || "/";
 }

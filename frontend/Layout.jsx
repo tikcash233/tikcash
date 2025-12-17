@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Home, User, TrendingUp, Heart, Menu, X, ArrowUp, MessageSquare } from "lucide-react";
+import { Home, User, TrendingUp, Heart, Menu, X, ArrowUp, MessageSquare, Settings } from "lucide-react";
 import Logo from "@/components/ui/Logo.jsx";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm.jsx";
@@ -25,6 +25,11 @@ const navigationItems = [
     title: "Support Creators",
     url: createPageUrl("SupporterDashboard"),
     icon: Heart,
+  },
+  {
+    title: "Profile Settings",
+    url: createPageUrl("ProfileSettings"),
+    icon: Settings,
   },
 ];
 

@@ -204,8 +204,23 @@ export const User = {
 };
 
 export const Password = {
-  async resetWithPin({ email, pin, new_password }) {
-    return await fetchJson('/api/auth/reset-with-pin', { method: 'POST', body: JSON.stringify({ email, pin, new_password }) });
+  async resetWithPin({ identifier, pin, new_password }) {
+    const trimmed = (identifier || '').trim();
+    const body = { identifier: trimmed, pin, new_password };
+    // If the identifier looks like an email, also include it explicitly for backend convenience
+    if (trimmed && /.+@.+\..+/.test(trimmed)) {
+      body.email = trimmed;
+    }
+    return await fetchJson('/api/auth/reset-with-pin', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async changeWithPin({ pin, new_password }) {
+    return await fetchJson('/api/auth/change-password-with-pin', { method: 'POST', body: JSON.stringify({ pin, new_password }) });
+  },
+  async changePin({ current_password, new_pin }) {
+    return await fetchJson('/api/auth/change-pin', { method: 'POST', body: JSON.stringify({ current_password, new_pin }) });
   }
 };
 

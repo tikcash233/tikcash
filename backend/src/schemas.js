@@ -25,6 +25,7 @@ export const TransactionCreateSchema = z.object({
   status: z.enum(['pending','completed','failed']).optional(),
   payment_reference: z.string().optional(),
   momo_number: z.string().optional(),
+  pin: z.string().regex(/^\d{4}$/, 'Enter a 4-digit PIN').optional(),
 });
 
 // Auth
@@ -92,15 +93,36 @@ export const VerifyCodeSchema = z.object({
   code: z.string().min(4).max(8),
 });
 
-// Password reset using 4-digit recovery PIN
-export const ResetWithPinSchema = z.object({
-  email: z.string().email(),
-  pin: z.string().regex(/^\d{4}$/, 'Enter the 4-digit PIN'),
-  new_password: z.string().min(8),
-});
+// Password reset using 4-digit recovery PIN (email or username)
+export const ResetWithPinSchema = z
+  .object({
+    email: z.string().email().optional(),
+    identifier: z.string().min(1).optional(),
+    pin: z.string().regex(/^\d{4}$/, 'Enter the 4-digit PIN'),
+    new_password: z.string().min(8),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.email && !val.identifier) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide email or username',
+        path: ['identifier'],
+      });
+    }
+  });
 
 // Change password for logged-in users
 export const ChangePasswordSchema = z.object({
   current_password: z.string().min(8),
   new_password: z.string().min(8),
+});
+
+export const ChangePasswordWithPinSchema = z.object({
+  pin: z.string().regex(/^\d{4}$/, 'Enter the 4-digit PIN'),
+  new_password: z.string().min(8),
+});
+
+export const ChangePinSchema = z.object({
+  current_password: z.string().min(8),
+  new_pin: z.string().regex(/^\d{4}$/, 'Enter the 4-digit PIN'),
 });

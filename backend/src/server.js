@@ -10,7 +10,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { pool, getPoolStats, closePool, query } from './db.js'; // Fixed import
 import { z } from 'zod';
-import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema, RequestVerifySchema, VerifyCodeSchema, ResetWithPinSchema, ChangePasswordSchema } from './schemas.js';
+import { CreatorCreateSchema, CreatorUpdateSchema, TransactionCreateSchema, RegisterSchema, LoginSchema, RequestVerifySchema, VerifyCodeSchema, ResetWithPinSchema, ChangePasswordSchema, ChangePasswordWithPinSchema, ChangePinSchema } from './schemas.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { listCreators, createCreator, updateCreator, getCreatorById } from './models/creators.js';
@@ -650,7 +650,7 @@ const RESEND_FROM = process.env.RESEND_FROM_EMAIL || '';
 const RESEND_SEND_IN_DEV = (process.env.RESEND_SEND_IN_DEV || 'false').toLowerCase() === 'true';
 const RESEND_TEST_EMAIL = (process.env.RESEND_TEST_EMAIL || '').toLowerCase();
 function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '100d' });
 }
 function authRequired(req, res, next) {
   const header = req.headers.authorization || '';
@@ -808,28 +808,68 @@ app.post('/api/auth/register', async (req, res, next) => {
   }
 });
 
-// Reset password with 4-digit PIN (no email needed)
+// Reset password with 4-digit PIN (email or username)
 app.post('/api/auth/reset-with-pin', async (req, res, next) => {
   try {
-    const { email, pin, new_password } = ResetWithPinSchema.parse(req.body);
-    const ur = await pool.query('SELECT id, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE email = $1', [email.toLowerCase()]);
-    const u = ur.rows[0];
+    const { email, identifier, pin, new_password } = ResetWithPinSchema.parse(req.body);
+    let user = null;
+
+    // First try direct email lookup if provided
+    let lookupEmail = null;
+    if (email) lookupEmail = String(email).toLowerCase();
+    if (lookupEmail) {
+      const ur = await pool.query(
+        'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE email = $1',
+        [lookupEmail],
+      );
+      user = ur.rows[0];
+    }
+
+    // If not found by email and an identifier was provided, treat it like login (creator username)
+    if (!user && identifier) {
+      let id = String(identifier).trim();
+      if (id.startsWith('@')) id = id.slice(1);
+      const cr = await pool.query(
+        'SELECT created_by, email FROM creators WHERE lower(tiktok_username) = lower($1) LIMIT 1',
+        [id],
+      );
+      const c = cr.rows[0];
+      if (c) {
+        if (c.created_by) {
+          const ur = await pool.query(
+            'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE email = $1 LIMIT 1',
+            [String(c.created_by).toLowerCase()],
+          );
+          user = ur.rows[0];
+        }
+        if (!user && c.email) {
+          const ur2 = await pool.query(
+            'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE email = $1 LIMIT 1',
+            [String(c.email).toLowerCase()],
+          );
+          user = ur2.rows[0];
+        }
+      }
+    }
+
     // Do not reveal existence
-    if (!u) return res.status(200).json({ ok: true });
-    if (u.pin_locked_until && new Date(u.pin_locked_until) > new Date()) {
+    if (!user) return res.status(200).json({ ok: true });
+    if (user.pin_locked_until && new Date(user.pin_locked_until) > new Date()) {
       return res.status(429).json({ error: 'Too many attempts. Try again later.' });
     }
-    const ok = u.recovery_pin_hash && await bcrypt.compare(pin, u.recovery_pin_hash);
+    const ok = user.recovery_pin_hash && (await bcrypt.compare(pin, user.recovery_pin_hash));
     if (!ok) {
-      const attempts = (u.failed_pin_attempts || 0) + 1;
+      const attempts = (user.failed_pin_attempts || 0) + 1;
       const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
-      await pool.query('UPDATE users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [u.id, attempts, lockUntil]);
+      await pool.query('UPDATE users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [user.id, attempts, lockUntil]);
       return res.status(400).json({ error: 'Invalid PIN.' });
     }
     const newHash = await bcrypt.hash(new_password, 10);
-    await pool.query('UPDATE users SET password_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [u.id, newHash]);
+    await pool.query('UPDATE users SET password_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [user.id, newHash]);
     return res.status(200).json({ ok: true });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 // Change password for logged-in users
@@ -843,6 +883,40 @@ app.post('/api/auth/change-password', authRequired, async (req, res, next) => {
     if (!match) return res.status(400).json({ error: 'Current password is incorrect.' });
     const newHash = await bcrypt.hash(new_password, 10);
     await pool.query('UPDATE users SET password_hash=$2 WHERE id=$1', [req.user.sub, newHash]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+app.post('/api/auth/change-password-with-pin', authRequired, async (req, res, next) => {
+  try {
+    const { pin, new_password } = ChangePasswordWithPinSchema.parse(req.body);
+    const ur = await pool.query('SELECT id, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE id = $1', [req.user.sub]);
+    const u = ur.rows[0];
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    if (u.pin_locked_until && new Date(u.pin_locked_until) > new Date()) {
+      return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+    }
+    const ok = u.recovery_pin_hash && await bcrypt.compare(pin, u.recovery_pin_hash);
+    if (!ok) {
+      const attempts = (u.failed_pin_attempts || 0) + 1;
+      const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
+      await pool.query('UPDATE users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [u.id, attempts, lockUntil]);
+      return res.status(400).json({ error: 'Invalid PIN.' });
+    }
+    const newHash = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [u.id, newHash]);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+app.post('/api/auth/change-pin', authRequired, async (req, res, next) => {
+  try {
+    const { current_password, new_pin } = ChangePinSchema.parse(req.body);
+    const ur = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.sub]);
+    const u = ur.rows[0];
+    if (!u?.password_hash) return res.status(400).json({ error: 'No password set.' });
+    const match = await bcrypt.compare(current_password, u.password_hash);
+    if (!match) return res.status(400).json({ error: 'Current password is incorrect.' });
+    const pinHash = await bcrypt.hash(new_pin, 10);
+    await pool.query('UPDATE users SET recovery_pin_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [req.user.sub, pinHash]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -1055,16 +1129,66 @@ app.get('/api/creators/:id/transactions', async (req, res, next) => {
 app.post('/api/transactions', async (req, res, next) => {
   try {
     const data = TransactionCreateSchema.parse(req.body);
-    // Attach supporter_user_id if authenticated
+    // Attach supporter_user_id for tips if authenticated and enforce PIN + ownership for withdrawals
     const header = req.headers.authorization || '';
     let supporterUserId = null;
+    let authUser = null;
     const token = header.startsWith('Bearer ')
       ? header.slice(7)
       : (req.cookies?.token || null);
     if (token) {
-      try { const dec = jwt.verify(token, JWT_SECRET); supporterUserId = dec?.sub || null; } catch {}
+      try {
+        const dec = jwt.verify(token, JWT_SECRET);
+        supporterUserId = dec?.sub || null;
+        authUser = dec;
+      } catch {}
     }
-    if (supporterUserId) data.supporter_user_id = supporterUserId;
+
+    // For public tips, we optionally attach supporter_user_id but do not require auth
+    if (supporterUserId && data.transaction_type === 'tip') {
+      data.supporter_user_id = supporterUserId;
+    }
+
+    // For withdrawals, require auth + correct 4-digit PIN + creator ownership
+    if (data.transaction_type === 'withdrawal') {
+      if (!authUser?.sub) {
+        return res.status(401).json({ error: 'Authentication required for withdrawals.' });
+      }
+      if (!data.pin) {
+        return res.status(400).json({ error: 'PIN is required for withdrawals.' });
+      }
+
+      // Load user with PIN state
+      const ur = await pool.query('SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE id = $1', [authUser.sub]);
+      const u = ur.rows[0];
+      if (!u) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      if (u.pin_locked_until && new Date(u.pin_locked_until) > new Date()) {
+        return res.status(429).json({ error: 'Too many PIN attempts. Try again later.' });
+      }
+
+      const ok = u.recovery_pin_hash && await bcrypt.compare(data.pin, u.recovery_pin_hash);
+      if (!ok) {
+        const attempts = (u.failed_pin_attempts || 0) + 1;
+        const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
+        await pool.query('UPDATE users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [u.id, attempts, lockUntil]);
+        return res.status(400).json({ error: 'Invalid PIN.' });
+      }
+
+      // Reset failed attempts on success
+      await pool.query('UPDATE users SET failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [u.id]);
+
+      // Ensure the creator being withdrawn from belongs to this user (created_by email)
+      const cr = await pool.query('SELECT id, created_by FROM creators WHERE id = $1', [data.creator_id]);
+      const creator = cr.rows[0];
+      if (!creator) {
+        return res.status(404).json({ error: 'Creator not found' });
+      }
+      if (creator.created_by && u.email && String(creator.created_by).toLowerCase() !== String(u.email).toLowerCase()) {
+        return res.status(403).json({ error: 'You are not allowed to withdraw for this creator.' });
+      }
+    }
     // For tips/withdrawals, apply balance updates atomically
   const created = await createTipAndApply(data);
   const normalized = { ...created, amount: created.amount != null ? Number(created.amount) : created.amount };

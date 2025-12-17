@@ -7,40 +7,42 @@ import { AlertTriangle } from "lucide-react";
 export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 	const [amount, setAmount] = useState("");
 		const [momo, setMomo] = useState("");
+		const [pin, setPin] = useState("");
 		const [isConfirming, setIsConfirming] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const available = creator?.available_balance || 0;
 
-		const MIN_WITHDRAW = 10;
-		const momoRegex = useMemo(
-			() => /^(020|024|025|026|027|028|029|050|053|054|055|056|057|058|059)\d{7}$/,
-			[]
-		);
+	const MIN_WITHDRAW = 10;
+	const momoRegex = useMemo(
+		() => /^(020|024|025|026|027|028|029|050|053|054|055|056|057|058|059)\d{7}$/,
+		[]
+	);
 
-		const amountNumber = useMemo(() => parseFloat(amount || "0"), [amount]);
-		const amountInvalid = !isFinite(amountNumber) || amountNumber <= 0 || amountNumber > available || amountNumber < MIN_WITHDRAW;
-		const momoInvalid = !momoRegex.test((momo || "").trim());
+	const amountNumber = useMemo(() => parseFloat(amount || "0"), [amount]);
+	const amountInvalid = !isFinite(amountNumber) || amountNumber <= 0 || amountNumber > available || amountNumber < MIN_WITHDRAW;
+	const momoInvalid = !momoRegex.test((momo || "").trim());
+	const pinInvalid = pin.length !== 4;
 
-		// Withdrawals: creators withdraw their available (net) balance. We do not show
-		// a creator/platform fee breakdown here. Processor transfer fees (if any)
-		// are handled by the payments provider and are not displayed in this UI.
-		const fees = useMemo(() => ({ platform_fee: 0, paystack_fee: 0, creator_amount: amountNumber, platform_net: 0 }), [amountNumber]);
+	// Withdrawals: creators withdraw their available (net) balance. We do not show
+	// a creator/platform fee breakdown here. Processor transfer fees (if any)
+	// are handled by the payments provider and are not displayed in this UI.
+	const fees = useMemo(() => ({ platform_fee: 0, paystack_fee: 0, creator_amount: amountNumber, platform_net: 0 }), [amountNumber]);
 
 	const handleSubmit = (e) => {
 		e.preventDefault();
 		const value = amountNumber;
-		if (amountInvalid || momoInvalid) return;
+		if (amountInvalid || momoInvalid || pinInvalid) return;
 
-				// Move to styled confirmation step instead of browser confirm
-				setIsConfirming(true);
+		// Move to styled confirmation step instead of browser confirm
+		setIsConfirming(true);
 	};
 
 	const handleFinalConfirm = () => {
 		const value = amountNumber;
-		if (amountInvalid || momoInvalid) return;
+		if (amountInvalid || momoInvalid || pinInvalid) return;
 		if (isSubmitting) return;
 		setIsSubmitting(true);
-		Promise.resolve(onWithdraw?.({ amount: value, momo: momo.trim() }))
+		Promise.resolve(onWithdraw?.({ amount: value, momo: momo.trim(), pin }))
 		  .finally(() => setIsSubmitting(false));
 	};
 
@@ -137,9 +139,25 @@ export default function WithdrawalModal({ creator, onWithdraw, onClose }) {
 								)}
 							</div>
 
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">4-digit PIN</label>
+								<Input
+									type="password"
+									inputMode="numeric"
+									maxLength={4}
+									value={pin}
+									onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+									placeholder="••••"
+									required
+								/>
+								{pin && pinInvalid && (
+									<p className="mt-1 text-xs text-red-600">Enter your 4-digit PIN</p>
+								)}
+							</div>
+
 							<div className="flex justify-end gap-2">
 								<Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-								<Button type="submit" disabled={amountInvalid || momoInvalid}>Continue</Button>
+								<Button type="submit" disabled={amountInvalid || momoInvalid || pinInvalid}>Continue</Button>
 							</div>
 						</form>
 					)}

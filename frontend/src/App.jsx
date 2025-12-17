@@ -15,6 +15,7 @@ import AdminSupportTickets from '@/pages/AdminSupportTickets.jsx';
 import AdminPlatformEarnings from '@/pages/AdminPlatformEarnings.jsx';
 import AdminCreators from '@/pages/AdminCreators.jsx';
 import RequireAuth from '@/utils/RequireAuth.jsx';
+import ProfileSettings from '@/pages/ProfileSettings.jsx';
 
 function WithLayout({ children, name }) {
   return <Layout currentPageName={name}>{children}</Layout>;
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/auth" element={<WithLayout name="Auth"><Auth /></WithLayout>} />
           <Route path="/reset" element={<WithLayout name="Reset"><Reset /></WithLayout>} />
           <Route path="/payment/result" element={<WithLayout name="PaymentResult"><PaymentResult /></WithLayout>} />
+          <Route path="/settings" element={<RequireAuth><WithLayout name="ProfileSettings"><ProfileSettings /></WithLayout></RequireAuth>} />
           <Route path="/admin" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminDashboard /></WithLayout></RequireAuth>} />
           <Route path="/admin/approved" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminApproved /></WithLayout></RequireAuth>} />
           <Route path="/admin/declined" element={<RequireAuth><WithLayout name="AdminDashboard"><AdminDeclined /></WithLayout></RequireAuth>} />
