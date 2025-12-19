@@ -14,7 +14,7 @@ async function preview() {
     SELECT
       COUNT(*) AS completed_tips,
       COALESCE(SUM(ROUND((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS recomputed_creator_total
-    FROM transactions
+    FROM tikcash_transactions
     WHERE transaction_type='tip' AND status='completed' AND amount > 0
   `);
   return counts.rows[0];
@@ -26,7 +26,7 @@ async function runCommit() {
   try {
     return await withTransaction(async (client) => {
       await client.query(`
-        UPDATE transactions
+        UPDATE tikcash_transactions
         SET
           platform_fee = round(((amount * 0.18::numeric) + (amount * 0.02::numeric)), 2),
           paystack_fee = round((amount * 0.02::numeric), 2),
@@ -41,23 +41,23 @@ async function runCommit() {
       await client.query(`
         WITH tip_sums AS (
           SELECT creator_id, COALESCE(SUM(creator_amount), 0) AS sum_creator_amount
-          FROM transactions
+          FROM tikcash_transactions
           WHERE transaction_type = 'tip' AND status = 'completed'
           GROUP BY creator_id
         ),
         withdraw_sums AS (
           SELECT creator_id, COALESCE(SUM(amount), 0) AS sum_withdrawals
-          FROM transactions
+          FROM tikcash_transactions
           WHERE transaction_type = 'withdrawal'
           GROUP BY creator_id
         ),
         agg AS (
           SELECT c.id AS creator_id, COALESCE(t.sum_creator_amount, 0) AS sum_creator_amount, COALESCE(w.sum_withdrawals, 0) AS sum_withdrawals
-          FROM creators c
+          FROM tikcash_creators c
           LEFT JOIN tip_sums t ON t.creator_id = c.id
           LEFT JOIN withdraw_sums w ON w.creator_id = c.id
         )
-        UPDATE creators
+        UPDATE tikcash_creators
         SET
           total_earnings = agg.sum_creator_amount,
           available_balance = (agg.sum_creator_amount + agg.sum_withdrawals),
@@ -74,7 +74,7 @@ async function runCommit() {
         WITH tip_calc AS (
      SELECT creator_id,
        COALESCE(SUM(ROUND((amount - (amount * 0.18::numeric) - (amount * 0.02::numeric))::numeric, 2)), 0) AS sum_creator_amount
-          FROM transactions
+          FROM tikcash_transactions
           WHERE transaction_type = 'tip'
             AND status = 'completed'
             AND amount IS NOT NULL
@@ -84,7 +84,7 @@ async function runCommit() {
         withdraw_sums AS (
           SELECT creator_id,
                  COALESCE(SUM(amount), 0) AS sum_withdrawals
-          FROM transactions
+          FROM tikcash_transactions
           WHERE transaction_type = 'withdrawal'
           GROUP BY creator_id
         ),
@@ -92,11 +92,11 @@ async function runCommit() {
           SELECT c.id AS creator_id,
                  COALESCE(t.sum_creator_amount, 0) AS sum_creator_amount,
                  COALESCE(w.sum_withdrawals, 0) AS sum_withdrawals
-          FROM creators c
+          FROM tikcash_creators c
           LEFT JOIN tip_calc t ON t.creator_id = c.id
           LEFT JOIN withdraw_sums w ON w.creator_id = c.id
         )
-        UPDATE creators
+        UPDATE tikcash_creators
         SET
           total_earnings = agg.sum_creator_amount,
           available_balance = (agg.sum_creator_amount + agg.sum_withdrawals),

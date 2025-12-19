@@ -6,7 +6,7 @@ export async function listTransactionsForCreator(creatorId, { limit = 50, includ
   // If limit is null or the string 'all', return full history (no LIMIT clause)
   const unlimited = limit === null || limit === 'all';
   // Only exclude pending/expired for tips, not withdrawals
-  let sql = `SELECT * FROM transactions WHERE creator_id = $1`;
+  let sql = `SELECT * FROM tikcash_transactions WHERE creator_id = $1`;
   const params = [creatorId];
   if (!includeExpired) {
     sql += ` AND (transaction_type != 'tip' OR status NOT IN ('pending', 'expired'))`;
@@ -32,7 +32,7 @@ export async function createTransaction(data) {
       vals.push(`$${params.length}`);
     }
   });
-  const sql = `INSERT INTO transactions(${cols.join(',')}) VALUES(${vals.join(',')}) RETURNING *`;
+  const sql = `INSERT INTO tikcash_transactions(${cols.join(',')}) VALUES(${vals.join(',')}) RETURNING *`;
   const res = await query(sql, params);
   return res.rows[0];
 }
@@ -42,7 +42,7 @@ export async function approveWithdrawal(withdrawalId, approverId = null) {
   try {
     // Only allow approving withdrawals that are currently pending
     const res = await query(
-      `UPDATE transactions SET status = 'completed', approved_by = $2, approved_at = now() WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
+      `UPDATE tikcash_transactions SET status = 'completed', approved_by = $2, approved_at = now() WHERE id = $1 AND transaction_type = 'withdrawal' AND status = 'pending' RETURNING *`,
       [withdrawalId, approverId]
     );
     const tx = res.rows[0] || null;
@@ -79,13 +79,13 @@ function computeFees(amount) {
 
 export async function getByIdempotency(creatorId, key) {
   if (!creatorId || !key) return null;
-  const r = await query('SELECT * FROM transactions WHERE creator_id=$1 AND idempotency_key=$2 LIMIT 1', [creatorId, key]);
+  const r = await query('SELECT * FROM tikcash_transactions WHERE creator_id=$1 AND idempotency_key=$2 LIMIT 1', [creatorId, key]);
   return r.rows[0] || null;
 }
 
 export async function attachAuthorizationUrl(transactionId, url) {
   if (!transactionId || !url) return;
-  await query('UPDATE transactions SET paystack_authorization_url=$2 WHERE id=$1', [transactionId, url]);
+  await query('UPDATE tikcash_transactions SET paystack_authorization_url=$2 WHERE id=$1', [transactionId, url]);
 }
 
 // Atomic helper to apply a tip to creator balances and insert transaction
@@ -120,7 +120,7 @@ export async function createTipAndApply(data) {
     }
 
     // Lock creator row during balance update
-    const cr = await client.query('SELECT id, available_balance FROM creators WHERE id = $1 FOR UPDATE', [data.creator_id]);
+    const cr = await client.query('SELECT id, available_balance FROM tikcash_creators WHERE id = $1 FOR UPDATE', [data.creator_id]);
     if (cr.rowCount === 0) {
       const err = new Error('Creator not found');
       err.status = 404;
@@ -144,7 +144,7 @@ export async function createTipAndApply(data) {
     }
 
     const txRes = await client.query(
-      `INSERT INTO transactions(creator_id, supporter_name, amount, message, transaction_type, status, payment_reference, momo_number, supporter_user_id, platform_fee, paystack_fee, creator_amount, platform_net)
+      `INSERT INTO tikcash_transactions(creator_id, supporter_name, amount, message, transaction_type, status, payment_reference, momo_number, supporter_user_id, platform_fee, paystack_fee, creator_amount, platform_net)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
       [data.creator_id, data.supporter_name || null, data.amount, data.message || null, data.transaction_type, status, data.payment_reference || null, data.momo_number || null, data.supporter_user_id || null, fees.platform_fee, fees.paystack_fee, fees.creator_amount, fees.platform_net]
     );
@@ -156,13 +156,13 @@ export async function createTipAndApply(data) {
       // Apply only the creator's share to balances
       const creatorShare = fees.creator_amount;
       await client.query(
-        `UPDATE creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2`,
+        `UPDATE tikcash_creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2`,
         [creatorShare, data.creator_id]
       );
     }
     if (data.transaction_type === 'withdrawal' && data.amount < 0) {
       await client.query(
-        `UPDATE creators SET available_balance = available_balance + $1, updated_at = now() WHERE id = $2`,
+        `UPDATE tikcash_creators SET available_balance = available_balance + $1, updated_at = now() WHERE id = $2`,
         [data.amount, data.creator_id]
       );
     }
@@ -174,14 +174,14 @@ export async function createTipAndApply(data) {
 
 // Fetch by Paystack reference
 export async function getTransactionByReference(reference) {
-  const res = await query('SELECT * FROM transactions WHERE payment_reference = $1 LIMIT 1', [reference]);
+  const res = await query('SELECT * FROM tikcash_transactions WHERE payment_reference = $1 LIMIT 1', [reference]);
   return res.rows[0] || null;
 }
 
 // Complete an existing pending tip (created before redirect) and apply balance increase atomically.
 export async function completePendingTip(reference, amount) {
   return withTransaction(async (client) => {
-    const tr = await client.query('SELECT * FROM transactions WHERE payment_reference = $1 FOR UPDATE', [reference]);
+    const tr = await client.query('SELECT * FROM tikcash_transactions WHERE payment_reference = $1 FOR UPDATE', [reference]);
     if (tr.rowCount === 0) return null; // not found
     const tx = tr.rows[0];
     if (tx.status !== 'pending') return tx; // already processed
@@ -189,13 +189,13 @@ export async function completePendingTip(reference, amount) {
     // Compute fees and creator share for the finalized amount
     const finalAmount = Number(amount);
     const fees = (finalAmount > 0) ? computeFees(finalAmount) : { platform_fee: 0, paystack_fee: 0, creator_amount: finalAmount, platform_net: 0 };
-  await client.query('UPDATE transactions SET status = $2, amount = $3, platform_fee = $4, paystack_fee = $5, creator_amount = $6, platform_net = $7 WHERE id = $1', [tx.id, 'completed', finalAmount, fees.platform_fee, fees.paystack_fee, fees.creator_amount, fees.platform_net]);
+  await client.query('UPDATE tikcash_transactions SET status = $2, amount = $3, platform_fee = $4, paystack_fee = $5, creator_amount = $6, platform_net = $7 WHERE id = $1', [tx.id, 'completed', finalAmount, fees.platform_fee, fees.paystack_fee, fees.creator_amount, fees.platform_net]);
     // Apply to creator balances (only their share)
     if (finalAmount > 0) {
-      await client.query('UPDATE creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2', [fees.creator_amount, tx.creator_id]);
+      await client.query('UPDATE tikcash_creators SET total_earnings = total_earnings + $1, available_balance = available_balance + $1, updated_at = now() WHERE id = $2', [fees.creator_amount, tx.creator_id]);
     }
     try {
-      const updated = await client.query('SELECT * FROM transactions WHERE id = $1', [tx.id]);
+      const updated = await client.query('SELECT * FROM tikcash_transactions WHERE id = $1', [tx.id]);
       const finalTx = updated.rows[0];
       try { emitTransactionEvent(finalTx); } catch (e) { /* swallow */ }
       return finalTx;
@@ -222,8 +222,8 @@ export async function listCreatorsSupportedByUser(userId, { page = 1, limit = 24
         MAX(t.created_date) AS last_supported_at,
         COUNT(t.id) AS support_count,
         SUM(t.amount) AS total_supported
-     FROM creators c
-     INNER JOIN transactions t ON c.id = t.creator_id
+     FROM tikcash_creators c
+     INNER JOIN tikcash_transactions t ON c.id = t.creator_id
      WHERE t.supporter_user_id = $1 
        AND t.status = 'completed' 
        AND t.transaction_type = 'tip'
@@ -239,10 +239,10 @@ export async function listCreatorsSupportedByUser(userId, { page = 1, limit = 24
 export async function expireOldPendingTips() {
   try {
     const result = await query(
-      `UPDATE transactions 
+      `UPDATE tikcash_transactions 
        SET status = 'expired' 
        WHERE status = 'pending' 
-       AND transaction_type = 'tip' 
+        AND transaction_type = 'tip' 
        AND created_date < NOW() - INTERVAL '30 minutes'
        RETURNING id, payment_reference, creator_id`,
       []

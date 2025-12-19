@@ -30,10 +30,10 @@ export async function listCreators({ sort = '-total_earnings', category, search,
       lt.created_date AS last_tip_at,
       lt.supporter_name AS last_tip_supporter,
       lt.message AS last_tip_message
-    FROM creators c
+    FROM tikcash_creators c
     LEFT JOIN LATERAL (
       SELECT t.amount, t.created_date, t.supporter_name, t.message
-      FROM transactions t
+      FROM tikcash_transactions t
       WHERE t.creator_id = c.id 
         AND t.transaction_type = 'tip'
         AND t.status = 'completed'
@@ -61,7 +61,7 @@ export async function createCreator(data) {
       vals.push(`$${params.length}`);
     }
   });
-  const sql = `INSERT INTO creators(${cols.join(',')}) VALUES(${vals.join(',')}) RETURNING *`;
+  const sql = `INSERT INTO tikcash_creators(${cols.join(',')}) VALUES(${vals.join(',')}) RETURNING *`;
   const res = await query(sql, params);
   const row = res.rows[0];
   return row ? parseNumericFields(row, ['total_earnings','available_balance']) : null;
@@ -75,14 +75,14 @@ export async function updateCreator(id, patch) {
     sets.push(`${k} = $${params.length}`);
   });
   params.push(id);
-  const sql = `UPDATE creators SET ${sets.join(', ')}, updated_at = now() WHERE id = $${params.length} RETURNING *`;
+  const sql = `UPDATE tikcash_creators SET ${sets.join(', ')}, updated_at = now() WHERE id = $${params.length} RETURNING *`;
   const res = await query(sql, params);
   const row = res.rows[0];
   return row ? parseNumericFields(row, ['total_earnings','available_balance']) : null;
 }
 
 export async function getCreatorById(id) {
-  const res = await query('SELECT * FROM creators WHERE id = $1', [id]);
+  const res = await query('SELECT * FROM tikcash_creators WHERE id = $1', [id]);
   const row = res.rows[0];
   return row ? parseNumericFields(row, ['total_earnings','available_balance']) : null;
 }

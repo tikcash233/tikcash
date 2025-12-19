@@ -91,7 +91,7 @@ app.use(cors({
 app.get('/api/admin/pending-withdrawals', authRequired, adminRequired, async (req, res) => {
   try {
     // TODO: Add authentication/authorization for admin
-    const sql = `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id LEFT JOIN users u ON t.declined_by = u.id WHERE t.transaction_type = 'withdrawal' AND t.status = 'pending' ORDER BY t.created_date DESC`;
+    const sql = `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id LEFT JOIN tikcash_users u ON t.declined_by = u.id WHERE t.transaction_type = 'withdrawal' AND t.status = 'pending' ORDER BY t.created_date DESC`;
     const result = await query(sql);
     res.json({ withdrawals: result.rows });
   } catch (err) {
@@ -134,7 +134,7 @@ app.post('/api/admin/decline-withdrawal', authRequired, adminRequired, async (re
 
     // Lock the withdrawal row to avoid races
     const sel = await client.query(
-      `SELECT id, creator_id, amount, status FROM transactions WHERE id = $1 AND transaction_type = 'withdrawal' FOR UPDATE`,
+      `SELECT id, creator_id, amount, status FROM tikcash_transactions WHERE id = $1 AND transaction_type = 'withdrawal' FOR UPDATE`,
       [withdrawalId]
     );
     const txRow = sel.rows[0];
@@ -148,19 +148,19 @@ app.post('/api/admin/decline-withdrawal', authRequired, adminRequired, async (re
 
     // mark transaction as failed and record who/when
     await client.query(
-      `UPDATE transactions SET status = 'failed', declined_at = now(), declined_by = $2 WHERE id = $1`,
+      `UPDATE tikcash_transactions SET status = 'failed', declined_at = now(), declined_by = $2 WHERE id = $1`,
       [withdrawalId, req.user?.sub || null]
     );
 
     // refund to creator available_balance
     await client.query(
-      `UPDATE creators SET available_balance = COALESCE(available_balance, 0) + $1 WHERE id = $2`,
+      `UPDATE tikcash_creators SET available_balance = COALESCE(available_balance, 0) + $1 WHERE id = $2`,
       [refundAmount, txRow.creator_id]
     );
 
     // fetch updated row with creator info (include declined_by_name if user exists)
     const updatedRes = await client.query(
-      `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id LEFT JOIN users u ON t.declined_by = u.id WHERE t.id = $1`,
+      `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id LEFT JOIN tikcash_users u ON t.declined_by = u.id WHERE t.id = $1`,
       [withdrawalId]
     );
 
@@ -244,8 +244,8 @@ app.get('/api/admin/my-approved-withdrawals', authRequired, adminRequired, async
       if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`;
     } catch {}
 
-  const dataSql = `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id LEFT JOIN users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
-    const countSql = `SELECT COUNT(1) as total FROM transactions t ${where}`;
+  const dataSql = `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id LEFT JOIN tikcash_users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+    const countSql = `SELECT COUNT(1) as total FROM tikcash_transactions t ${where}`;
 
     const dataResult = await query(dataSql, params);
     const countResult = await query(countSql, params);
@@ -321,8 +321,8 @@ app.get('/api/admin/approved-withdrawals', authRequired, adminRequired, async (r
   let orderBy = 'COALESCE(t.approved_at, t.created_date) DESC';
     try { const [field, dir] = sort.split(':'); const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
 
-  const dataSql = `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id LEFT JOIN users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
-    const countSql = `SELECT COUNT(1) as total FROM transactions t ${where}`;
+  const dataSql = `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id LEFT JOIN tikcash_users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+    const countSql = `SELECT COUNT(1) as total FROM tikcash_transactions t ${where}`;
 
     const dataResult = await query(dataSql, params);
     const countResult = await query(countSql, params);
@@ -364,8 +364,8 @@ app.get('/api/admin/declined-withdrawals', authRequired, adminRequired, async (r
     let orderBy = 't.declined_at DESC';
     try { const [field, dir] = sort.split(':'); const allowed = { declined_at: 't.declined_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
 
-  const dataSql = `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id LEFT JOIN users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
-  const countSql = `SELECT COUNT(1) as total FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id LEFT JOIN users u ON t.declined_by = u.id ${where}`;
+  const dataSql = `SELECT t.*, c.tiktok_username, c.display_name, u.name AS declined_by_name FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id LEFT JOIN tikcash_users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+  const countSql = `SELECT COUNT(1) as total FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id LEFT JOIN tikcash_users u ON t.declined_by = u.id ${where}`;
 
     const dataResult = await query(dataSql, params);
     const countResult = await query(countSql, params);
@@ -404,13 +404,13 @@ app.get('/api/admin/platform-net', authRequired, adminRequired, async (req, res)
     let sql;
     if (period === 'monthly') {
       // Format month as YYYY-MM
-      sql = `SELECT to_char(date_trunc('month', created_date AT TIME ZONE 'UTC'), 'YYYY-MM') AS month, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY month ORDER BY month DESC`;
+      sql = `SELECT to_char(date_trunc('month', created_date AT TIME ZONE 'UTC'), 'YYYY-MM') AS month, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM tikcash_transactions ${whereSql} GROUP BY month ORDER BY month DESC`;
     } else if (period === 'yearly') {
       // Format year as YYYY
-      sql = `SELECT to_char(date_trunc('year', created_date AT TIME ZONE 'UTC'), 'YYYY') AS year, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY year ORDER BY year DESC`;
+      sql = `SELECT to_char(date_trunc('year', created_date AT TIME ZONE 'UTC'), 'YYYY') AS year, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM tikcash_transactions ${whereSql} GROUP BY year ORDER BY year DESC`;
     } else {
       // Group by day (UTC) to avoid time zone issues; format as YYYY-MM-DD
-      sql = `SELECT to_char(date_trunc('day', created_date AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM transactions ${whereSql} GROUP BY day ORDER BY day DESC`;
+      sql = `SELECT to_char(date_trunc('day', created_date AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, SUM(COALESCE(platform_net,0))::numeric(12,2) AS total_platform_net, COUNT(1) AS count FROM tikcash_transactions ${whereSql} GROUP BY day ORDER BY day DESC`;
     }
 
     const accept = (req.query.format || '').toLowerCase();
@@ -467,7 +467,7 @@ app.get('/api/admin/declined-withdrawals/export', authRequired, adminRequired, a
     let orderBy = 't.declined_at DESC';
     try { const [field, dir] = sort.split(':'); const allowed = { declined_at: 't.declined_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
 
-    const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at, t.declined_at, t.declined_by FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy}`;
+    const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at, t.declined_at, t.declined_by FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id ${where} ORDER BY ${orderBy}`;
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="declined-withdrawals-${Date.now()}.csv"`);
     // Write CSV header
@@ -509,7 +509,7 @@ app.get('/api/admin/approved-withdrawals/export', authRequired, adminRequired, a
   let orderBy = 'COALESCE(t.approved_at, t.created_date) DESC';
     try { const [field, dir] = sort.split(':'); const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
 
-  const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at, t.declined_at, t.declined_by, u.name AS declined_by_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id LEFT JOIN users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy}`;
+  const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at, t.declined_at, t.declined_by, u.name AS declined_by_name FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id LEFT JOIN tikcash_users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy}`;
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="approved-withdrawals-${Date.now()}.csv"`);
   // Write CSV header
@@ -557,7 +557,7 @@ app.get('/api/admin/my-approved-withdrawals/export', authRequired, adminRequired
     let orderBy = 't.approved_at DESC';
     try { const [field, dir] = sort.split(':'); const allowed = { approved_at: 't.approved_at', amount: 't.amount', created_date: 't.created_date' }; if (allowed[field]) orderBy = `${allowed[field]} ${dir && dir.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`; } catch {}
 
-  const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at, t.declined_at, t.declined_by, u.name AS declined_by_name FROM transactions t LEFT JOIN creators c ON t.creator_id = c.id LEFT JOIN users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy}`;
+  const sql = `SELECT t.id, t.creator_id, c.tiktok_username, c.display_name, t.amount, t.momo_number, t.approved_at, t.declined_at, t.declined_by, u.name AS declined_by_name FROM tikcash_transactions t LEFT JOIN tikcash_creators c ON t.creator_id = c.id LEFT JOIN tikcash_users u ON t.declined_by = u.id ${where} ORDER BY ${orderBy}`;
 
     // Stream CSV response
     res.setHeader('Content-Type', 'text/csv');
@@ -683,7 +683,7 @@ async function adminRequired(req, res, next) {
     if (envAdminEmail && req.user.email && String(req.user.email).toLowerCase() === envAdminEmail) return next();
 
     // Otherwise, check the user's role in the database as normal
-    const r = await pool.query('SELECT role FROM users WHERE id = $1', [req.user.sub]);
+    const r = await pool.query('SELECT role FROM tikcash_users WHERE id = $1', [req.user.sub]);
     const user = r.rows[0];
     if (!user || user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
     next();
@@ -738,7 +738,7 @@ app.post('/api/auth/register', async (req, res, next) => {
   // If attempting to register as a creator, ensure the requested tiktok_username is available.
   if ((role || 'supporter') === 'creator' && data.tiktok_username) {
     const t = String(data.tiktok_username).trim();
-    const ex = await pool.query('SELECT id FROM creators WHERE lower(tiktok_username) = lower($1) LIMIT 1', [t]);
+    const ex = await pool.query('SELECT id FROM tikcash_creators WHERE lower(tiktok_username) = lower($1) LIMIT 1', [t]);
     if (ex.rows && ex.rows.length > 0) {
       // Return a concise, machine-friendly error so frontend can show appropriate UI
       return res.status(409).json({
@@ -753,7 +753,7 @@ app.post('/api/auth/register', async (req, res, next) => {
     const hashed = await bcrypt.hash(password, 10);
     const pinHash = await bcrypt.hash(recovery_pin, 10);
     const r = await pool.query(
-      'INSERT INTO users(email, password_hash, name, role, email_verified, recovery_pin_hash) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT (email) DO NOTHING RETURNING id, email, name, role, email_verified, created_at',
+      'INSERT INTO tikcash_users(email, password_hash, name, role, email_verified, recovery_pin_hash) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT (email) DO NOTHING RETURNING id, email, name, role, email_verified, created_at',
       [email.toLowerCase(), hashed, name || null, effectiveRole, VERIFY_EMAIL ? false : true, pinHash]
     );
     const user = r.rows[0];
@@ -819,7 +819,7 @@ app.post('/api/auth/reset-with-pin', async (req, res, next) => {
     if (email) lookupEmail = String(email).toLowerCase();
     if (lookupEmail) {
       const ur = await pool.query(
-        'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE email = $1',
+        'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM tikcash_users WHERE email = $1',
         [lookupEmail],
       );
       user = ur.rows[0];
@@ -830,21 +830,21 @@ app.post('/api/auth/reset-with-pin', async (req, res, next) => {
       let id = String(identifier).trim();
       if (id.startsWith('@')) id = id.slice(1);
       const cr = await pool.query(
-        'SELECT created_by, email FROM creators WHERE lower(tiktok_username) = lower($1) LIMIT 1',
+        'SELECT created_by, email FROM tikcash_creators WHERE lower(tiktok_username) = lower($1) LIMIT 1',
         [id],
       );
       const c = cr.rows[0];
       if (c) {
         if (c.created_by) {
           const ur = await pool.query(
-            'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE email = $1 LIMIT 1',
+            'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM tikcash_users WHERE email = $1 LIMIT 1',
             [String(c.created_by).toLowerCase()],
           );
           user = ur.rows[0];
         }
         if (!user && c.email) {
           const ur2 = await pool.query(
-            'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE email = $1 LIMIT 1',
+            'SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM tikcash_users WHERE email = $1 LIMIT 1',
             [String(c.email).toLowerCase()],
           );
           user = ur2.rows[0];
@@ -861,11 +861,11 @@ app.post('/api/auth/reset-with-pin', async (req, res, next) => {
     if (!ok) {
       const attempts = (user.failed_pin_attempts || 0) + 1;
       const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
-      await pool.query('UPDATE users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [user.id, attempts, lockUntil]);
+      await pool.query('UPDATE tikcash_users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [user.id, attempts, lockUntil]);
       return res.status(400).json({ error: 'Invalid PIN.' });
     }
     const newHash = await bcrypt.hash(new_password, 10);
-    await pool.query('UPDATE users SET password_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [user.id, newHash]);
+    await pool.query('UPDATE tikcash_users SET password_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [user.id, newHash]);
     return res.status(200).json({ ok: true });
   } catch (e) {
     next(e);
@@ -876,20 +876,20 @@ app.post('/api/auth/reset-with-pin', async (req, res, next) => {
 app.post('/api/auth/change-password', authRequired, async (req, res, next) => {
   try {
     const { current_password, new_password } = ChangePasswordSchema.parse(req.body);
-    const ur = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.sub]);
+    const ur = await pool.query('SELECT password_hash FROM tikcash_users WHERE id = $1', [req.user.sub]);
     const u = ur.rows[0];
     if (!u?.password_hash) return res.status(400).json({ error: 'No password set.' });
     const match = await bcrypt.compare(current_password, u.password_hash);
     if (!match) return res.status(400).json({ error: 'Current password is incorrect.' });
     const newHash = await bcrypt.hash(new_password, 10);
-    await pool.query('UPDATE users SET password_hash=$2 WHERE id=$1', [req.user.sub, newHash]);
+    await pool.query('UPDATE tikcash_users SET password_hash=$2 WHERE id=$1', [req.user.sub, newHash]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
 app.post('/api/auth/change-password-with-pin', authRequired, async (req, res, next) => {
   try {
     const { pin, new_password } = ChangePasswordWithPinSchema.parse(req.body);
-    const ur = await pool.query('SELECT id, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE id = $1', [req.user.sub]);
+    const ur = await pool.query('SELECT id, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM tikcash_users WHERE id = $1', [req.user.sub]);
     const u = ur.rows[0];
     if (!u) return res.status(404).json({ error: 'User not found' });
     if (u.pin_locked_until && new Date(u.pin_locked_until) > new Date()) {
@@ -899,24 +899,24 @@ app.post('/api/auth/change-password-with-pin', authRequired, async (req, res, ne
     if (!ok) {
       const attempts = (u.failed_pin_attempts || 0) + 1;
       const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
-      await pool.query('UPDATE users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [u.id, attempts, lockUntil]);
+      await pool.query('UPDATE tikcash_users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [u.id, attempts, lockUntil]);
       return res.status(400).json({ error: 'Invalid PIN.' });
     }
     const newHash = await bcrypt.hash(new_password, 10);
-    await pool.query('UPDATE users SET password_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [u.id, newHash]);
+    await pool.query('UPDATE tikcash_users SET password_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [u.id, newHash]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
 app.post('/api/auth/change-pin', authRequired, async (req, res, next) => {
   try {
     const { current_password, new_pin } = ChangePinSchema.parse(req.body);
-    const ur = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.sub]);
+    const ur = await pool.query('SELECT password_hash FROM tikcash_users WHERE id = $1', [req.user.sub]);
     const u = ur.rows[0];
     if (!u?.password_hash) return res.status(400).json({ error: 'No password set.' });
     const match = await bcrypt.compare(current_password, u.password_hash);
     if (!match) return res.status(400).json({ error: 'Current password is incorrect.' });
     const pinHash = await bcrypt.hash(new_pin, 10);
-    await pool.query('UPDATE users SET recovery_pin_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [req.user.sub, pinHash]);
+    await pool.query('UPDATE tikcash_users SET recovery_pin_hash=$2, failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [req.user.sub, pinHash]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -930,7 +930,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     if (data.email) lookupEmail = String(data.email).toLowerCase();
     let user = null;
     if (lookupEmail) {
-      const r = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM users WHERE email = $1', [lookupEmail]);
+      const r = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM tikcash_users WHERE email = $1', [lookupEmail]);
       user = r.rows[0];
     }
 
@@ -940,16 +940,16 @@ app.post('/api/auth/login', async (req, res, next) => {
       // strip leading @ from username if present
       if (id.startsWith('@')) id = id.slice(1);
       // try exact match on creators.tiktok_username (case-insensitive)
-      const cr = await pool.query('SELECT created_by, email FROM creators WHERE lower(tiktok_username) = lower($1) LIMIT 1', [id]);
+      const cr = await pool.query('SELECT created_by, email FROM tikcash_creators WHERE lower(tiktok_username) = lower($1) LIMIT 1', [id]);
       const c = cr.rows[0];
       if (c) {
         // prefer the users row matching the creators.created_by email, else fall back to a user with same email
         if (c.created_by) {
-          const ur = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM users WHERE email = $1 LIMIT 1', [String(c.created_by).toLowerCase()]);
+          const ur = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM tikcash_users WHERE email = $1 LIMIT 1', [String(c.created_by).toLowerCase()]);
           user = ur.rows[0];
         }
         if (!user && c.email) {
-          const ur2 = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM users WHERE email = $1 LIMIT 1', [String(c.email).toLowerCase()]);
+          const ur2 = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM tikcash_users WHERE email = $1 LIMIT 1', [String(c.email).toLowerCase()]);
           user = ur2.rows[0];
         }
       }
@@ -967,7 +967,7 @@ app.post('/api/auth/login', async (req, res, next) => {
 
 app.get('/api/auth/me', authRequired, async (req, res, next) => {
   try {
-  const r = await pool.query('SELECT id, email, name, role, email_verified FROM users WHERE id = $1', [req.user.sub]);
+  const r = await pool.query('SELECT id, email, name, role, email_verified FROM tikcash_users WHERE id = $1', [req.user.sub]);
     const user = r.rows[0];
     if (!user) return res.status(404).json({ error: 'Not found' });
     res.json({ user });
@@ -998,7 +998,7 @@ app.post('/api/creators', authRequired, async (req, res, next) => {
   try {
   const body = CreatorCreateSchema.parse(req.body);
   // Enforce account + verified email
-  const ur = await pool.query('SELECT email, email_verified FROM users WHERE id = $1', [req.user.sub]);
+  const ur = await pool.query('SELECT email, email_verified FROM tikcash_users WHERE id = $1', [req.user.sub]);
   const u = ur.rows[0];
   if (!u) return res.status(401).json({ error: 'Unauthorized' });
   if (!u.email_verified) return res.status(403).json({ error: 'Please verify your email before creating a profile.' });
@@ -1076,11 +1076,11 @@ app.post('/api/creators/remove-profile-picture', authRequired, async (req, res, 
   try {
     const userId = req.user.sub;
     // Get current profile image URL
-    const result = await pool.query('SELECT profile_image FROM creators WHERE created_by = (SELECT email FROM users WHERE id = $1)', [userId]);
+    const result = await pool.query('SELECT profile_image FROM tikcash_creators WHERE created_by = (SELECT email FROM tikcash_users WHERE id = $1)', [userId]);
     const imageUrl = result.rows[0]?.profile_image;
     if (!imageUrl) {
       // No image to remove
-      await pool.query('UPDATE creators SET profile_image = NULL WHERE created_by = (SELECT email FROM users WHERE id = $1)', [userId]);
+      await pool.query('UPDATE tikcash_creators SET profile_image = NULL WHERE created_by = (SELECT email FROM tikcash_users WHERE id = $1)', [userId]);
       return res.json({ ok: true });
     }
     const storageKey = extractKeyFromUrl(imageUrl);
@@ -1092,7 +1092,7 @@ app.post('/api/creators/remove-profile-picture', authRequired, async (req, res, 
         return res.status(500).json({ error: 'Failed to delete stored profile image. Please try again.' });
       }
     }
-    await pool.query('UPDATE creators SET profile_image = NULL WHERE created_by = (SELECT email FROM users WHERE id = $1)', [userId]);
+    await pool.query('UPDATE tikcash_creators SET profile_image = NULL WHERE created_by = (SELECT email FROM tikcash_users WHERE id = $1)', [userId]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -1159,7 +1159,7 @@ app.post('/api/transactions', async (req, res, next) => {
       }
 
       // Load user with PIN state
-      const ur = await pool.query('SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM users WHERE id = $1', [authUser.sub]);
+      const ur = await pool.query('SELECT id, email, recovery_pin_hash, failed_pin_attempts, pin_locked_until FROM tikcash_users WHERE id = $1', [authUser.sub]);
       const u = ur.rows[0];
       if (!u) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -1172,15 +1172,15 @@ app.post('/api/transactions', async (req, res, next) => {
       if (!ok) {
         const attempts = (u.failed_pin_attempts || 0) + 1;
         const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
-        await pool.query('UPDATE users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [u.id, attempts, lockUntil]);
+        await pool.query('UPDATE tikcash_users SET failed_pin_attempts=$2, pin_locked_until=$3 WHERE id=$1', [u.id, attempts, lockUntil]);
         return res.status(400).json({ error: 'Invalid PIN.' });
       }
 
       // Reset failed attempts on success
-      await pool.query('UPDATE users SET failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [u.id]);
+      await pool.query('UPDATE tikcash_users SET failed_pin_attempts=0, pin_locked_until=NULL WHERE id=$1', [u.id]);
 
       // Ensure the creator being withdrawn from belongs to this user (created_by email)
-      const cr = await pool.query('SELECT id, created_by FROM creators WHERE id = $1', [data.creator_id]);
+      const cr = await pool.query('SELECT id, created_by FROM tikcash_creators WHERE id = $1', [data.creator_id]);
       const creator = cr.rows[0];
       if (!creator) {
         return res.status(404).json({ error: 'Creator not found' });
@@ -1324,7 +1324,7 @@ async function handlePaystackWebhook(req, res, next) {
       const amountGHS = Number(data?.amount || 0) / 100; // pesewas -> GHS
       // Idempotent upsert: if we already have a pending row for this reference, complete it; otherwise create now
       try {
-        const existing = await pool.query('SELECT id FROM transactions WHERE payment_reference = $1 LIMIT 1', [ref]);
+        const existing = await pool.query('SELECT id FROM tikcash_transactions WHERE payment_reference = $1 LIMIT 1', [ref]);
         let finalTx = null;
         if (existing.rowCount > 0) {
           // Complete previously created pending transaction and apply balances
@@ -1485,7 +1485,7 @@ app.post('/api/creators/upload-profile-picture', authRequired, upload.single('pr
       publicUrl = fallbackUrl;
     }
 
-    await pool.query('UPDATE creators SET profile_image = $1 WHERE created_by = (SELECT email FROM users WHERE id = $2)', [publicUrl, userId]);
+    await pool.query('UPDATE tikcash_creators SET profile_image = $1 WHERE created_by = (SELECT email FROM tikcash_users WHERE id = $2)', [publicUrl, userId]);
     res.json({ url: publicUrl });
   } catch (e) { next(e); }
 });
