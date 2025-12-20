@@ -924,13 +924,17 @@ app.post('/api/auth/login', async (req, res, next) => {
   try {
     const data = LoginSchema.parse(req.body);
     const { password } = data;
+    const enableDebug = (process.env.DEBUG_AUTH || 'false').toLowerCase() === 'true';
+    const authStart = enableDebug ? Date.now() : null;
 
     // Resolve identifier: prefer explicit email, otherwise use identifier which may be email or username
     let lookupEmail = null;
     if (data.email) lookupEmail = String(data.email).toLowerCase();
     let user = null;
     if (lookupEmail) {
+      const dbStart = enableDebug ? Date.now() : null;
       const r = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM tikcash_users WHERE email = $1', [lookupEmail]);
+      if (enableDebug) console.info('[auth] DB lookup (email) took', Date.now() - dbStart, 'ms');
       user = r.rows[0];
     }
 
@@ -945,11 +949,15 @@ app.post('/api/auth/login', async (req, res, next) => {
       if (c) {
         // prefer the users row matching the creators.created_by email, else fall back to a user with same email
         if (c.created_by) {
+          const dbStart2 = enableDebug ? Date.now() : null;
           const ur = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM tikcash_users WHERE email = $1 LIMIT 1', [String(c.created_by).toLowerCase()]);
+          if (enableDebug) console.info('[auth] DB lookup (creators.created_by) took', Date.now() - dbStart2, 'ms');
           user = ur.rows[0];
         }
         if (!user && c.email) {
+          const dbStart3 = enableDebug ? Date.now() : null;
           const ur2 = await pool.query('SELECT id, email, name, role, email_verified, password_hash FROM tikcash_users WHERE email = $1 LIMIT 1', [String(c.email).toLowerCase()]);
+          if (enableDebug) console.info('[auth] DB lookup (creators.email) took', Date.now() - dbStart3, 'ms');
           user = ur2.rows[0];
         }
       }
@@ -958,9 +966,14 @@ app.post('/api/auth/login', async (req, res, next) => {
     // If still not found, return generic auth error (avoid user enumeration)
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
+    const bcryptStart = enableDebug ? Date.now() : null;
     const ok = await bcrypt.compare(password, user.password_hash);
+    if (enableDebug) console.info('[auth] bcrypt.compare took', Date.now() - bcryptStart, 'ms');
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    const signStart = enableDebug ? Date.now() : null;
     const token = signToken({ sub: user.id, email: user.email });
+    if (enableDebug) console.info('[auth] jwt.sign took', Date.now() - signStart, 'ms');
+    if (enableDebug) console.info('[auth] total login flow took', Date.now() - authStart, 'ms');
     res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role, email_verified: user.email_verified }, token });
   } catch (e) { next(e); }
 });
@@ -1510,6 +1523,30 @@ function startServer(port, attemptsLeft = 5) {
   server.listen(port, () => {
     server.off('error', onError);
     console.log(`✅ API server listening on http://localhost:${port}`);
+    // Warm DB connections on startup to avoid first-request latency (create several connections)
+    (async () => {
+      try {
+        const doWarm = (process.env.WARM_DB_ON_START || 'true').toLowerCase() === 'true';
+        if (!doWarm) return;
+        const warmCount = Number(process.env.DB_POOL_WARM || process.env.DB_POOL_MIN || 3);
+        const warmStart = Date.now();
+        const conns = [];
+        for (let i = 0; i < warmCount; i++) {
+          try {
+            const c = await pool.connect();
+            await c.query('SELECT 1');
+            c.release();
+            conns.push(true);
+          } catch (e) {
+            // non-fatal per-connection failure
+            console.error(`[startup] DB warm connection ${i} failed:`, e?.message || e);
+          }
+        }
+        console.log('[startup] DB warmup created', conns.length, 'connections in', Date.now() - warmStart, 'ms');
+      } catch (e) {
+        console.error('[startup] DB warmup failed:', e?.message || e);
+      }
+    })();
     
     // Smart cleanup job for expired pending tips (runs every 5 minutes, but only when active)
     const cleanupInterval = setInterval(() => {

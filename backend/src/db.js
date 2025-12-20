@@ -23,14 +23,16 @@ if (!process.env.DATABASE_URL) {
 const connectionString = (process.env.DATABASE_URL || '').replace(/^['"]|['"]$/g, '');
 
 // Optimized pool configuration for production efficiency
+const DEFAULT_POOL_MAX = Number(process.env.DB_POOL_MAX || (process.env.NODE_ENV === 'production' ? 20 : 10));
+const DEFAULT_IDLE_MS = Number(process.env.DB_IDLE_TIMEOUT_MS || (process.env.NODE_ENV === 'production' ? 60000 : 30000));
+
 export const pool = new Pool({
   connectionString,
-  max: process.env.NODE_ENV === 'production' ? 5 : 10, // Fewer connections in production
-  min: 1, // Keep at least 1 connection warm
-  idleTimeoutMillis: process.env.NODE_ENV === 'production' ? 60000 : 30000, // Longer idle timeout in production
-  connectionTimeoutMillis: 10000,
-  acquireTimeoutMillis: 8000, // Timeout for acquiring connection from pool
-  allowExitOnIdle: true, // Allow process to exit when all connections are idle
+  max: DEFAULT_POOL_MAX,
+  // node-postgres doesn't support a `min` option; we warm connections at startup instead
+  idleTimeoutMillis: DEFAULT_IDLE_MS,
+  connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS || 10000),
+  allowExitOnIdle: true,
   ssl: process.env.DATABASE_URL?.includes('sslmode=require')
     ? { rejectUnauthorized: false }
     : false,
