@@ -153,11 +153,15 @@ export const Transaction = {
 };
 
 export const User = {
-  async me() {
+  async me(options = {}) {
+    const { throwOnError = false } = options || {};
     try {
       const r = await fetchJson('/api/auth/me');
       return r.user;
     } catch (e) {
+      const status = e && e.status;
+      if (status === 401 || status === 403) return null;
+      if (throwOnError) throw e;
       const msg = (e && e.message) || '';
       if (msg.includes('HTTP 401') || msg.includes('HTTP 403')) return null;
       return null; // treat other failures as unauthenticated for guard simplicity

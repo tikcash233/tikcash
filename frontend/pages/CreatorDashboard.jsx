@@ -205,9 +205,10 @@ export default function CreatorDashboard() {
   // Load initial dashboard data (user, creator profile, recent transactions)
   async function loadDashboardData() {
     try {
-      const currentUser = await User.me();
+      const currentUser = await User.me({ throwOnError: true });
       if (!currentUser) {
-        navigate('/', { replace: true });
+        User.logout();
+        navigate('/auth?mode=login', { replace: true });
         return;
       }
       // Prevent admin accounts from accessing the creator dashboard.
@@ -229,17 +230,20 @@ export default function CreatorDashboard() {
       try {
         const creatorTransactions = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 50);
         setTransactions(creatorTransactions);
+        setIsLoading(false);
         // Fetch a larger window for chart (up to 1000) so old days are preserved
         // This avoids the bug where adding a new tip pushes an old tip out of the 50-item list,
         // which made that old day's total appear to “decrease”.
-        try {
-          // Fetch full history for performance chart (no truncation)
-          const longHistory = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 'all');
-          setPerformanceTransactions(longHistory);
-        } catch (e) {
-          // If large fetch fails, fall back to recent list to at least show some data
-          setPerformanceTransactions(creatorTransactions);
-        }
+        (async () => {
+          try {
+            // Fetch full history for performance chart (no truncation)
+            const longHistory = await Transaction.filter({ creator_id: creatorProfile.id }, '-created_date', 'all');
+            setPerformanceTransactions(longHistory);
+          } catch (e) {
+            // If large fetch fails, fall back to recent list to at least show some data
+            setPerformanceTransactions(creatorTransactions);
+          }
+        })();
       } catch (txError) {
         // Don't fail the whole dashboard if transactions can't load (offline)
         if (txError.isTemporary || txError.status === 503 || txError.isNetworkError) {
@@ -251,15 +255,12 @@ export default function CreatorDashboard() {
       }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
-      // Only redirect on non-network errors
       if (!err.isTemporary && !err.isNetworkError && err.status !== 503) {
         navigate('/', { replace: true });
       } else {
         // Show error state but don't redirect for network issues
         toastError('Connection issues. Please check your internet and try again.');
-        setIsLoading(false);
       }
-    } finally {
       setIsLoading(false);
     }
   }
